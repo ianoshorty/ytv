@@ -2,38 +2,41 @@
 <html>
 <head>
 <meta charset="utf-8">
-<!-- Ask for a 1920-wide page so the app can draw at full 1080p. If the TV
-     ignores this, app.js scales the 1280x720 layout to whatever it gets. -->
-<meta name="viewport" content="width=1920">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>YTV</title>
 </head>
 <body>
   <div id="app">
-    <div id="main">
-      <h1>YTV <small>Phase 0 · platform check</small></h1>
-      <div id="stage"><div id="frame"><div id="player"></div></div></div>
-      <div id="hud">Loading player…</div>
-      <div id="help">OK play/pause · ←/→ seek 10 s · ↑/↓ speed · Red or 1: full screen · 2: next test video · Back twice: exit</div>
+    <nav id="rail"><div class="logo">YTV</div></nav>
+    <main id="content"></main>
+  </div>
+  <div id="toast"></div>
+  <div id="player-layer">
+    <div id="player-frame"><div id="player"></div></div>
+    <div id="hud">
+      <div id="hud-top"><div id="hud-title"></div><div id="hud-meta"></div></div>
+      <div id="hud-bottom">
+        <div id="hud-bar"><div id="hud-fill"></div></div>
+        <div id="hud-state"></div>
+        <div id="hud-help">OK play/pause · ←/→ 10 s · ↑/↓ speed · 0–9 jump · Red info · Back close</div>
+      </div>
     </div>
-    <div id="side">
-      <h2>Checks</h2>
-      <div id="checks"></div>
-      <div id="keys"><h2>Remote keys seen</h2><div id="keylist"></div></div>
-    </div>
-    <div id="toast"></div>
   </div>
   <script>
     // The TV keeps pages cached until a full restart, so load the app's code
-    // and styles fresh on every launch.
+    // and styles fresh on every launch. async=false keeps the scripts in order.
     (function () {
       var t = Date.now();
       var css = document.createElement("link");
       css.rel = "stylesheet";
       css.href = "app.css?t=" + t;
       document.head.appendChild(css);
-      var js = document.createElement("script");
-      js.src = "app.js?t=" + t;
-      document.body.appendChild(js);
+      ["util", "api", "auth", "mock", "nav", "player", "screens", "main"].forEach(function (name) {
+        var js = document.createElement("script");
+        js.src = "js/" + name + ".js?t=" + t;
+        js.async = false;
+        document.body.appendChild(js);
+      });
     })();
   </script>
 </body>

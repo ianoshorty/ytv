@@ -1,23 +1,92 @@
-/* The layout is designed at 1280x720. app.js scales #app to fill whatever
-   page size the TV provides. */
-html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1116; color: #e8eef4; font: 16px/1.35 sans-serif; }
+/* Designed at 1280x720 (the page size VIDAA gives installed apps).
+   main.js scales #app if the TV ever provides a different size. */
+:root { --bg: #0e1116; --panel: #161b22; --line: #232b35; --text: #e8eef4; --dim: #8b98a5; --accent: #20a08c; --bad: #ff7b72; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font: 16px/1.35 sans-serif; }
 ::-webkit-scrollbar { display: none; }
-#app { position: relative; display: flex; gap: 20px; padding: 20px 24px; width: 1280px; height: 720px; box-sizing: border-box; transform-origin: 0 0; }
-#main { width: 800px; }
-h1 { font-size: 26px; margin: 0 0 10px; }
-h1 small { font-size: 14px; color: #8b98a5; font-weight: normal; }
-/* YouTube picks quality from the player's size in real pixels. app.js lays
-   #frame out at 1920x1080 real pixels and shrinks it into #stage. */
-#stage { width: 800px; height: 450px; background: #000; overflow: hidden; }
-#frame { transform-origin: 0 0; }
+#app { position: relative; display: flex; width: 1280px; height: 720px; transform-origin: 0 0; }
+
+/* Left-hand menu */
+#rail { width: 190px; padding: 22px 14px; box-sizing: border-box; background: #0a0d11; border-right: 1px solid var(--line); position: relative; }
+.logo { font-size: 26px; font-weight: bold; margin: 0 0 22px 10px; color: var(--accent); }
+.rail-item { padding: 10px 12px; margin-bottom: 6px; border-radius: 8px; font-size: 18px; color: var(--dim); border: 2px solid transparent; }
+.rail-item.active { color: var(--text); background: var(--panel); }
+.rail-foot { position: absolute; bottom: 16px; left: 24px; font-size: 12px; color: var(--dim); }
+
+/* Content */
+#content { flex: 1; height: 720px; overflow-y: auto; padding: 22px 28px 40px; box-sizing: border-box; }
+.head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 14px; }
+h1 { font-size: 28px; margin: 0; }
+h2 { font-size: 18px; margin: 18px 0 8px; color: var(--dim); font-weight: normal; }
+.sub { color: var(--dim); font-size: 14px; flex: 1; }
+.message { color: var(--dim); margin: 10px 0 14px; max-width: 760px; }
+.message.bad { color: var(--bad); }
+.message.hint { font-size: 13px; }
+
+/* Focus: anything focusable gets the accent ring */
+.f { outline: none; transition: transform .12s ease; }
+.f.focused { box-shadow: 0 0 0 3px var(--accent); }
+.rail-item.focused { color: var(--text); }
+
+.btn { display: inline-block; padding: 10px 18px; margin: 0 10px 10px 0; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.btn.small { padding: 6px 12px; font-size: 14px; }
+.row-btns { margin-top: 6px; }
+
+/* Video grid */
+.grid { display: grid; gap: 22px 18px; }
+.grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.card { border-radius: 10px; padding: 6px; }
+.card.focused { transform: scale(1.04); background: var(--panel); }
+.thumb { position: relative; width: 100%; padding-top: 56.25%; background: #000; border-radius: 6px; overflow: hidden; }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.badge { position: absolute; right: 6px; bottom: 6px; background: rgba(0,0,0,.8); font-size: 12px; padding: 1px 6px; border-radius: 4px; }
+.badge.live { background: #c4302b; }
+.card .title { margin-top: 8px; font-size: 15px; line-height: 1.3; height: 2.6em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.card .meta { margin-top: 4px; font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Channels */
+.grid.channels { grid-template-columns: repeat(5, 1fr); }
+.channel { text-align: center; padding: 12px 6px; border-radius: 10px; }
+.channel.focused { background: var(--panel); transform: scale(1.05); }
+.avatar { width: 88px; height: 88px; margin: 0 auto 8px; border-radius: 50%; overflow: hidden; background: var(--panel); font-size: 36px; line-height: 88px; color: var(--dim); }
+.avatar img { width: 100%; height: 100%; }
+.channel .name { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Search */
+.search { display: flex; gap: 26px; }
+.search-left { width: 330px; flex: none; }
+.search-right { flex: 1; }
+.query { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 20px; min-height: 26px; margin-bottom: 12px; word-break: break-all; }
+.query.empty { color: var(--dim); font-size: 15px; }
+.keyboard { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.key { text-align: center; padding: 9px 0; border-radius: 6px; background: var(--panel); font-size: 17px; }
+.key.wide { grid-column: span 2; }
+.key.go { grid-column: span 2; background: var(--accent); color: #fff; }
+.recent { margin-top: 14px; }
+.recent .label { color: var(--dim); font-size: 13px; margin-bottom: 6px; }
+.recent-item { display: block; margin: 0 0 6px; }
+
+/* Account */
+.account { margin-bottom: 10px; }
+.code-panel { background: var(--panel); border-radius: 12px; padding: 22px 26px; margin-bottom: 14px; max-width: 640px; }
+.code-panel .steps { font-size: 18px; color: var(--dim); }
+.code-panel .code { font-size: 54px; letter-spacing: 6px; font-weight: bold; margin-top: 10px; color: var(--text); }
+.settings .info { color: var(--dim); font-size: 14px; margin: 6px 0; }
+
+/* Toast */
+#toast { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); background: rgba(0,0,0,.88); padding: 8px 18px; border-radius: 8px; display: none; z-index: 40; }
+
+/* Player */
+#player-layer { display: none; position: fixed; inset: 0; background: #000; z-index: 30; }
+#player-frame { transform-origin: 0 0; }
 #player { width: 100%; height: 100%; display: block; }
-#hud { margin-top: 10px; font-size: 18px; color: #8fb8ff; }
-#help { margin-top: 8px; font-size: 14px; color: #8b98a5; }
-#side { flex: 1; font-size: 13px; }
-h2 { font-size: 15px; color: #8fb8ff; margin: 0 0 4px; }
-.row { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid #222a33; padding: 2px 0; }
-.k { color: #9aa7b4; } .v { text-align: right; overflow-wrap: anywhere; max-width: 65%; }
-.ok { color: #6fdc8c; } .bad { color: #ff7b72; }
-#keys { margin-top: 12px; }
-#toast { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); background: rgba(0,0,0,.85); padding: 8px 16px; border-radius: 6px; display: none; z-index: 3; }
-body.full #stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; z-index: 2; }
+#hud { position: absolute; inset: 0; opacity: 0; transition: opacity .25s; pointer-events: none; }
+#hud.show { opacity: 1; }
+#hud-top { padding: 24px 36px 40px; background: linear-gradient(rgba(0,0,0,.75), transparent); }
+#hud-title { font-size: 26px; }
+#hud-meta { color: #c4ccd4; margin-top: 4px; }
+#hud-bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 36px 22px; background: linear-gradient(transparent, rgba(0,0,0,.8)); }
+#hud-bar { height: 5px; background: rgba(255,255,255,.25); border-radius: 3px; overflow: hidden; }
+#hud-fill { height: 100%; width: 0; background: var(--accent); }
+#hud-state { margin-top: 10px; font-size: 18px; }
+#hud-help { margin-top: 4px; font-size: 13px; color: #aab4be; }

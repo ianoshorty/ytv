@@ -48,21 +48,36 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**Phase 0, platform check** (this version). The app shows checks (version,
-launch counter, page size, player size, firmware) and the codes of remote keys
-pressed, and plays test videos with speed control.
+**0.2: Phase 1 plus sign-in and subscriptions.**
 
-Remote: OK play/pause · ←/→ seek 10 s · ↑/↓ speed · Red or 1 full screen ·
-2 next test video · Back twice exit.
+- **Home:** newest uploads across your subscriptions (cached for 30 minutes)
+- **Subscriptions:** your channels A–Z, each opening its uploads
+- **Search:** on-screen keyboard (number keys type digits), recent searches
+- **Player:** full screen, 1080p, speed 0.25–2x remembered between videos
+- **Account:** sign in with a code at google.com/device, sign out (revokes the
+  token), hide Shorts, today's API usage
+
+Remote, browsing: arrows move · OK select · Back goes back (twice on Home
+exits).
+Remote, playing: OK play/pause · ←/→ 10 s · ↑/↓ speed · 0–9 jump to 0–90% ·
+Red info · Back close.
+
+Try it without any keys at `https://ianoshorty.github.io/ytv/?mock=1`
+(sample data).
+
+### How keys reach the app
+
+The API key and sign-in client details are not in this repo. The installer
+adds them to the TV's app entry after `#cfg=` in the address. Browsers never
+send that part to a server; the app saves it on the TV and removes it from
+the address. Sign-in uses Google's TV code flow with read-only YouTube access,
+and the tokens stay on the TV.
 
 ### Planned
 
-1. Player, speed control and search (YouTube Data API key)
-2. Sign in with the TV code flow (google.com/device), subscriptions, liked
-   videos and playlists
-3. Watch history with resume points, and a home dashboard built from
-   subscriptions and viewing
-4. Polish: on-screen keyboard, settings, quality options
+1. Liked videos and playlists
+2. Watch history with resume points, and a smarter home dashboard
+3. Polish: settings, quality options
 
 ## Notes
 
