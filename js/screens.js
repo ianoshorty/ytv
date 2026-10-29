@@ -231,7 +231,8 @@
     function label() { shorts.textContent = "Hide Shorts: " + (YTV.store.get("hideShorts", true) ? "on" : "off"); }
     label();
     settings.appendChild(shorts);
-    settings.appendChild(YTV.el("div", "info", "Playback speed is remembered between videos (↑/↓ while playing)."));
+    settings.appendChild(YTV.el("div", "info", "While playing: ↑/↓ speed, Green captions, Yellow quality. All three are remembered between videos."));
+    settings.appendChild(YTV.el("div", "info", "Ads and watch history: YouTube's player only knows about Premium and records history if you're signed in to YouTube in the TV's web browser. Signing in above only lets YTV read your subscriptions."));
     settings.appendChild(YTV.el("div", "info", "YouTube allowance used today: about " + YTV.quotaToday() + " of 10,000 units."));
     settings.appendChild(YTV.el("div", "info", launchInfo()));
     settings.appendChild(YTV.el("div", "info", "YTV " + YTV.VERSION + (YTV.MOCK ? " · sample data" : "")));

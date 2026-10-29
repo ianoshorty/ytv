@@ -1,34 +1,56 @@
 // Full-screen player using YouTube's official embedded player.
 // Remote: OK play/pause · ←/→ seek 10 s · ↑/↓ speed · 0–9 jump to 0–90% ·
-// Red info · Back close.
+// Red info · Green captions · Yellow quality · Back close.
 (function () {
   "use strict";
 
   var YTV = window.YTV;
   var SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-  // YouTube picks quality from the player's size in real pixels, so the
-  // player is laid out at 1920x1080 real pixels and scaled to the screen.
-  var TARGET = [1920, 1080];
+  // The embedded player can't be told which quality to play; YouTube picks
+  // it from the player's size in real pixels. So "quality" here sets the
+  // size the player is laid out at (then scaled to the screen), and the HUD
+  // shows what YouTube actually chose.
+  var QUALITIES = [
+    { h: 1080, label: "1080p" },
+    { h: 1440, label: "1440p" },
+    { h: 2160, label: "4K" },
+    { h: 480, label: "480p" },
+    { h: 720, label: "720p" }
+  ];
+  var KEY = { OK: 13, LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, RED: 403, GREEN: 404, YELLOW: 405,
+    PLAY: 415, PAUSE: 19, PLAY_PAUSE: 179, FF: 417, RW: 412, STOP: 413 };
+  var BACK = [8, 27, 461];
 
   var layer, frame, hud, hudTitle, hudMeta, hudState, fill;
   var yt = null, ytReady = null;
   var list = [], index = 0, open = false;
   var hudTimer, tick;
   var speed = YTV.store.get("speed", 1);
+  var quality = YTV.store.get("quality", 1080);
+  var captions = YTV.store.get("captions", false);
 
   function build() {
     layer = document.getElementById("player-layer");
     frame = document.getElementById("player-frame");
-    var dpr = window.devicePixelRatio || 1;
-    var w = TARGET[0] / dpr, h = TARGET[1] / dpr;
-    frame.style.width = w + "px";
-    frame.style.height = h + "px";
-    frame.style.transform = "scale(" + (innerWidth / w) + ")";
     hud = document.getElementById("hud");
     hudTitle = document.getElementById("hud-title");
     hudMeta = document.getElementById("hud-meta");
     hudState = document.getElementById("hud-state");
     fill = document.getElementById("hud-fill");
+    sizeFrame();
+  }
+
+  function sizeFrame() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = quality * 16 / 9 / dpr, h = quality / dpr;
+    frame.style.width = w + "px";
+    frame.style.height = h + "px";
+    frame.style.transform = "scale(" + (innerWidth / w) + ")";
+  }
+
+  function qualityLabel(h) {
+    var q = QUALITIES.filter(function (x) { return x.h === h; })[0];
+    return q ? q.label : h + "p";
   }
 
   function loadApi() {
@@ -43,10 +65,11 @@
       return new Promise(function (resolve) {
         yt = new YT.Player("player", {
           width: "100%", height: "100%",
-          playerVars: { autoplay: 1, controls: 0, rel: 0, playsinline: 1, iv_load_policy: 3, disablekb: 1 },
+          playerVars: { autoplay: 1, controls: 0, rel: 0, playsinline: 1, iv_load_policy: 3, disablekb: 1, cc_load_policy: captions ? 1 : 0 },
           events: {
             onReady: function () { resolve(); },
             onStateChange: onState,
+            onApiChange: applyCaptions,
             onError: function (e) {
               var msg = e.data === 101 || e.data === 150 ? "This video can't be played outside YouTube." : "Player error " + e.data;
               YTV.toast(msg);
@@ -59,9 +82,21 @@
     return ytReady;
   }
 
+  // YouTube turns captions on by itself for some videos and viewers; the
+  // captions module is unloaded to switch them off.
+  function applyCaptions() {
+    if (!yt || !yt.loadModule) return;
+    try {
+      if (captions) yt.loadModule("captions"); else { yt.unloadModule("captions"); yt.unloadModule("cc"); }
+    } catch (e) { /* no captions on this video */ }
+  }
+
   function onState(e) {
-    // Speed can't change during ads, so apply it whenever playback starts.
-    if (e.data === YT.PlayerState.PLAYING && yt.getPlaybackRate() !== speed) yt.setPlaybackRate(speed);
+    if (e.data === YT.PlayerState.PLAYING) {
+      // Speed can't change during ads, so apply it whenever playback starts.
+      if (yt.getPlaybackRate() !== speed) yt.setPlaybackRate(speed);
+      applyCaptions();
+    }
     if (e.data === YT.PlayerState.ENDED && open) close();
     showHud();
   }
@@ -72,7 +107,8 @@
     if (!yt || !yt.getPlayerState) return;
     var state = { "-1": "Starting", 0: "Ended", 1: "Playing", 2: "Paused", 3: "Buffering", 5: "Ready" }[yt.getPlayerState()] || "";
     var dur = yt.getDuration() || 0, t = yt.getCurrentTime() || 0;
-    hudState.textContent = state + " · " + yt.getPlaybackRate() + "x · " + (yt.getPlaybackQuality() || "") +
+    hudState.textContent = state + " · " + yt.getPlaybackRate() + "x · quality " + qualityLabel(quality) +
+      " asked, YouTube playing " + (yt.getPlaybackQuality() || "?") + " · captions " + (captions ? "on" : "off") +
       " · " + YTV.clock(t) + " / " + YTV.clock(dur);
     fill.style.width = dur ? (100 * t / dur) + "%" : "0";
   }
@@ -91,9 +127,28 @@
     YTV.toast("Speed " + speed + "x");
   }
 
+  function nextQuality() {
+    var i = QUALITIES.map(function (q) { return q.h; }).indexOf(quality);
+    quality = QUALITIES[(i + 1) % QUALITIES.length].h;
+    YTV.store.set("quality", quality);
+    sizeFrame();
+    YTV.toast("Quality: " + qualityLabel(quality) + " (YouTube may take a few seconds)");
+  }
+
+  function toggleCaptions() {
+    captions = !captions;
+    YTV.store.set("captions", captions);
+    applyCaptions();
+    YTV.toast("Captions " + (captions ? "on" : "off"));
+  }
+
   function seek(s) {
     yt.seekTo(Math.max(0, yt.getCurrentTime() + s), true);
     YTV.toast((s > 0 ? "+" : "−") + Math.abs(s) + " s");
+  }
+
+  function togglePlay() {
+    if (yt.getPlayerState() === YT.PlayerState.PLAYING) { yt.pauseVideo(); showHud(true); } else yt.playVideo();
   }
 
   function close() {
@@ -130,18 +185,23 @@
     key: function (code) {
       if (!open) return false;
       showHud();
-      if (code === 8 || code === 27 || code === 461) { close(); return true; }
+      if (BACK.indexOf(code) >= 0 || code === KEY.STOP) { close(); return true; }
       if (!yt || !yt.getPlayerState) return true;
-      if (code === 13) {
-        if (yt.getPlayerState() === YT.PlayerState.PLAYING) { yt.pauseVideo(); showHud(true); } else yt.playVideo();
-      } else if (code === 37) seek(-10);
-      else if (code === 39) seek(10);
-      else if (code === 38) setSpeed(1);
-      else if (code === 40) setSpeed(-1);
+      if (code === KEY.OK || code === KEY.PLAY_PAUSE) togglePlay();
+      else if (code === KEY.PLAY) yt.playVideo();
+      else if (code === KEY.PAUSE) { yt.pauseVideo(); showHud(true); }
+      else if (code === KEY.LEFT) seek(-10);
+      else if (code === KEY.RIGHT) seek(10);
+      else if (code === KEY.RW) seek(-30);
+      else if (code === KEY.FF) seek(30);
+      else if (code === KEY.UP) setSpeed(1);
+      else if (code === KEY.DOWN) setSpeed(-1);
+      else if (code === KEY.GREEN) toggleCaptions();
+      else if (code === KEY.YELLOW) nextQuality();
       else if (code >= 48 && code <= 57) {
         yt.seekTo((yt.getDuration() || 0) * (code - 48) / 10, true);
         YTV.toast((code - 48) * 10 + "%");
-      } else if (code === 403) {
+      } else if (code === KEY.RED) {
         if (hud.classList.contains("show")) hud.classList.remove("show"); else showHud(true);
       }
       return true;
