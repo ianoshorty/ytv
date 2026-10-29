@@ -7,7 +7,9 @@
 (function () {
   "use strict";
 
-  var VERSION = "0.1.1";
+  var VERSION = "0.1.2";
+  var DESIGN = [1280, 720]; // layout size in CSS pixels
+  var TARGET = [1920, 1080]; // real pixels the player is laid out at
   var params = new URLSearchParams(location.search);
   // Key 2 cycles through these. The music videos usually carry ads, so if an
   // ad plays first, Premium isn't being applied. Some labels block embedding
@@ -21,6 +23,8 @@
   var VIDEO_ID = params.get("v") || VIDEOS[0].id;
   var SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
+  var appEl = document.getElementById("app");
+  var frameEl = document.getElementById("frame");
   var checksEl = document.getElementById("checks");
   var keylistEl = document.getElementById("keylist");
   var hudEl = document.getElementById("hud");
@@ -55,11 +59,35 @@
     checksEl.appendChild(row);
   }
 
+  // --- layout ----------------------------------------------------------------
+  // Scale the 1280x720 design to the page, and lay the player out at 1920x1080
+  // real pixels (shrunk into its box), because YouTube picks quality from the
+  // player's size times the pixel ratio.
+  var dpr = window.devicePixelRatio || 1;
+  var frameW = TARGET[0] / dpr;
+  var frameH = TARGET[1] / dpr;
+  frameEl.style.width = frameW + "px";
+  frameEl.style.height = frameH + "px";
+
+  function layout() {
+    appEl.style.transform = "scale(" + (innerWidth / DESIGN[0]) + ")";
+    var boxW = document.body.className === "full" ? DESIGN[0] : 800;
+    frameEl.style.transform = "scale(" + (boxW / frameW) + ")";
+  }
+  layout();
+  window.addEventListener("resize", layout);
+
+  function toggleFull() {
+    document.body.className = document.body.className === "full" ? "" : "full";
+    layout();
+  }
+
   var hisenseApis = Object.getOwnPropertyNames(window).filter(function (n) { return /^(Hisense_|HiUtils_)/.test(n); });
   check("Version", VERSION);
   check("Launches remembered", launches, launches > 1 ? true : undefined);
   check("Running from", location.host + location.pathname);
-  check("Page size", innerWidth + "x" + innerHeight + " @" + devicePixelRatio + "x");
+  check("Page size", innerWidth + "x" + innerHeight + " @" + dpr + "x", innerWidth * dpr >= 1920 ? true : undefined);
+  check("Player laid out at", Math.round(frameW * dpr) + "x" + Math.round(frameH * dpr) + " real px");
   check("Hisense functions", hisenseApis.length, hisenseApis.length > 0);
   check("Engine", (navigator.userAgent.match(/Chrome\/[\d.]+/) || ["?"])[0]);
   if (typeof window.Hisense_GetFirmWareVersion === "function") {
@@ -150,7 +178,7 @@
   var lastBack = 0;
   function back() {
     if (document.body.className === "full") {
-      document.body.className = "";
+      toggleFull();
       return;
     }
     if (Date.now() - lastBack < 2000) {
@@ -168,8 +196,7 @@
     13: togglePlay, 37: function () { seek(-10); }, 39: function () { seek(10); },
     38: function () { setSpeed(1); }, 40: function () { setSpeed(-1); },
     8: back, 27: back, 461: back,
-    403: function () { document.body.className = document.body.className === "full" ? "" : "full"; },
-    49: function () { document.body.className = document.body.className === "full" ? "" : "full"; },
+    403: toggleFull, 49: toggleFull,
     50: nextVideo
   };
 
