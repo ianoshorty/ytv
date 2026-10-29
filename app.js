@@ -7,7 +7,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "0.1.0";
+  var VERSION = "0.1.1";
   var params = new URLSearchParams(location.search);
   // Key 2 cycles through these. The music videos usually carry ads, so if an
   // ad plays first, Premium isn't being applied. Some labels block embedding
