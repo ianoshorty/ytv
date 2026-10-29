@@ -13,9 +13,17 @@
     return h;
   }
 
+  // What the app received at launch (never shows the keys themselves).
+  function launchInfo() {
+    var l = YTV.launch;
+    return "Keys: " + (l.source || "none") + " · launch address had " + (l.hashChars ? l.hashChars + " characters after #" : "nothing after #") +
+      (l.appList ? " · app list: " + l.appList : "");
+  }
+
   function needsSetup(el) {
     if (YTV.MOCK || YTV.config.apiKey) return false;
     YTV.ui.message(el, "This TV hasn't been given its YouTube API key yet. Run the installer with your secrets file (see the setup guide).", "bad");
+    YTV.ui.message(el, launchInfo(), "hint");
     return true;
   }
 
@@ -225,6 +233,7 @@
     settings.appendChild(shorts);
     settings.appendChild(YTV.el("div", "info", "Playback speed is remembered between videos (↑/↓ while playing)."));
     settings.appendChild(YTV.el("div", "info", "YouTube allowance used today: about " + YTV.quotaToday() + " of 10,000 units."));
+    settings.appendChild(YTV.el("div", "info", launchInfo()));
     settings.appendChild(YTV.el("div", "info", "YTV " + YTV.VERSION + (YTV.MOCK ? " · sample data" : "")));
     el.appendChild(settings);
   };
