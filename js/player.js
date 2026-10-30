@@ -184,6 +184,12 @@
     // Returns true if the key was handled.
     key: function (code) {
       if (!open) return false;
+      // Red toggles the info bar, so it's handled before any key shows it.
+      if (code === KEY.RED) {
+        clearTimeout(hudTimer);
+        if (hud.classList.contains("show")) hud.classList.remove("show"); else showHud(true);
+        return true;
+      }
       showHud();
       if (BACK.indexOf(code) >= 0 || code === KEY.STOP) { close(); return true; }
       if (!yt || !yt.getPlayerState) return true;
@@ -201,8 +207,6 @@
       else if (code >= 48 && code <= 57) {
         yt.seekTo((yt.getDuration() || 0) * (code - 48) / 10, true);
         YTV.toast((code - 48) * 10 + "%");
-      } else if (code === KEY.RED) {
-        if (hud.classList.contains("show")) hud.classList.remove("show"); else showHud(true);
       }
       return true;
     }
