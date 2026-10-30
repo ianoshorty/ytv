@@ -48,43 +48,25 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.9: video history actions and manual progress sync, alongside TV-native history sync, subscriptions, resume and Home rows.**
+**0.9.2: TV-native history sync, video actions with immediate Continue watching
+dismissal, subscriptions, resume and Home rows.**
 
-- **Home:** rows that scroll sideways: Sent from your phone, Continue watching
-  on this TV, Latest from your subscriptions (no Shorts, cached 30 minutes),
+- **Home:** rows that scroll sideways: Sent from your phone, Continue watching,
+  Latest from your subscriptions (no Shorts, cached 30 minutes),
   and Shorts. Shorts are spotted as vertical videos of 3 minutes or less. The
   menu shrinks as you scroll along a row; Blue or ← at the start opens it
 - **Category rows** under Shorts group your subscriptions' recent videos by what
   they're about: specific rows from tags and topics several videos share (e.g. a
   game), then YouTube categories (Gaming, News & Politics, Sport…). Built from
   data YTV already fetches, so no extra quota
-- **Recent:** videos played in YTV on this TV, with progress bars and no list
-  cap. Continue watching also shows all eligible entries available locally or
-  in the imported YouTube history, without a display cap.
-  **Sync progress to YouTube** checks only the latest 12 TV entries, comparing
-  the raw TV playback record with a fresh
-  history read and sends only progress that is further ahead. Videos with
-  unknown cloud progress are skipped unless locally complete. Missing local
-  durations are skipped; progress
-  already further ahead on YouTube is preserved. At most 12 videos are checked,
-  with one player lookup and two reporting requests per changed video.
-- **Video actions:** hold OK for about a second on any video card to mark it
-  completely watched, remove it from YouTube history (with confirmation), or
-  remove it from Recent on this TV only. Cloud actions require enabled history
-  sync. Removal uses YouTube's own per-video history DELETE control; if it is
-  unavailable in the recent feed, nothing is deleted. Without enabled sync,
-  marking watched applies locally. Completing a video or removing it from history
-  dismisses its Continue watching tile immediately with a short fade and slide;
-  remote focus moves to the next available tile. Unconfirmed manual writes are never retried
-  automatically. These actions do not change the player session
-- **YouTube history sync (optional):** a separate session connected once to the
-  TV lets YTV import recent YouTube history and report new playback directly.
-  No phone or computer companion runs while watching. Enable or pause it in
-  Account. YouTube progress, when supplied, supports approximate resume;
-  an entry without progress is labelled "In history" rather than finished.
-  This uses undocumented YouTube endpoints and the VIDAA native HTTP service;
-  it may need a new session if Google expires the connection. The private setup
-  tools and session notes are kept outside this public repository.
+- **Watch history:** Recent and Continue watching are uncapped. Optional sync
+  imports recent YouTube history and reports playback directly from the TV.
+  Recent's **Sync progress to YouTube** checks only the latest 12 TV entries.
+- **Video actions:** hold OK to mark completely watched or remove from history.
+  Continue watching tiles fade out and the remaining tiles slide left after a
+  successful action. Cloud removal asks for confirmation; local-only actions
+  are labelled separately.
+- History behavior, limits and implementation: **[Watch history](WATCH_HISTORY.md)**.
 - **Send to TV:** save a video to your YouTube playlist called "TV" (e.g. on
   your phone) and YTV plays it within about 10 seconds while it's open, or
   offers it (Blue) if something's already playing. Read-only access means it
@@ -97,8 +79,8 @@ The installer isn't in this repo. It's built on what these projects documented:
 - **Account:** sign in with a code at google.com/device, sign out (revokes the
   token), hide Shorts, today's API usage
 
-Remote, browsing: arrows move · OK select · hold OK on a video for actions · Back goes back (twice on Home
-exits).
+Remote, browsing: arrows move · OK select · hold OK on a video for actions ·
+Back goes back (twice on Home exits).
 Remote, playing: OK play/pause · ←/→ 10 s · rewind/fast-forward 30 s ·
 ↑/↓ speed · 0–9 jump to 0–90% · Red info · Green captions · Yellow quality · Blue play what your phone sent ·
 Back or Stop close.
@@ -121,7 +103,7 @@ and the tokens stay on the TV.
 ### Planned
 
 1. Liked videos and playlists
-2. Watch history with resume points, and a smarter home dashboard
+2. A smarter home dashboard
 3. Polish: settings, quality options
 
 ## Notes
