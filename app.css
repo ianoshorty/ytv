@@ -46,6 +46,8 @@ h2 { font-size: 18px; margin: 18px 0 8px; color: var(--dim); font-weight: normal
 .row { display: flex; gap: 18px; overflow-x: auto; overflow-y: hidden; padding: 8px 6px 14px; margin: 0 -6px 10px; }
 .row .card { flex: none; width: 250px; box-sizing: border-box; }
 .row .card.short { width: 150px; }
+.continue-watching .card { transition: opacity .18s ease, width .24s ease, padding .24s ease, margin .24s ease, transform .12s ease; }
+.continue-watching .card.leaving { opacity: 0; width: 0; padding-left: 0; padding-right: 0; margin-right: -18px; pointer-events: none; overflow: hidden; }
 .row .card.short .thumb { padding-top: 177.78%; }
 .card { border-radius: 10px; padding: 6px; }
 .card.focused { transform: scale(1.04); background: var(--panel); }

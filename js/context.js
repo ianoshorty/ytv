@@ -7,8 +7,11 @@
     if (!dialog) return;
     var previous = dialog.previous;
     dialog.root.remove(); dialog = null;
-    if (previous && previous.isConnected && previous.offsetParent !== null) YTV.focus.set(previous);
-    else YTV.focus.first();
+    if (previous && previous.isConnected && previous.offsetParent !== null && !previous._removing) YTV.focus.set(previous);
+    else {
+      var current = YTV.focus.get();
+      if (!current || !current.isConnected || current.offsetParent === null || current._removing) YTV.focus.first();
+    }
   }
   function highlight() {
     dialog.buttons.forEach(function (b, i) { b.classList.toggle('focused', i === dialog.index); });
@@ -33,6 +36,7 @@
     highlight();
   }
   function refresh(id, removed, localOnly) {
+    if (removed) YTV.ui.removeContinue(id);
     if (removed) Array.prototype.forEach.call(document.querySelectorAll('.card[data-id="' + id + '"]'), function (card) {
       if (card.closest('.screen-recent') || !localOnly && card.closest('.screen-youtubeHistory')) card.remove();
     });

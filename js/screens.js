@@ -43,7 +43,7 @@
 
     var unfinished = YTV.history.unfinished();
     if (unfinished.length) {
-      YTV.ui.videoRow(el, "Continue watching", function () { return Promise.resolve(unfinished); });
+      YTV.ui.videoRow(el, "Continue watching", function () { return Promise.resolve(unfinished); }, { continueWatching: true });
     }
 
     if (needsSetup(el)) return;

@@ -73,7 +73,9 @@ The installer isn't in this repo. It's built on what these projects documented:
   remove it from Recent on this TV only. Cloud actions require enabled history
   sync. Removal uses YouTube's own per-video history DELETE control; if it is
   unavailable in the recent feed, nothing is deleted. Without enabled sync,
-  marking watched applies locally. Unconfirmed manual writes are never retried
+  marking watched applies locally. Completing a video or removing it from history
+  dismisses its Continue watching tile immediately with a short fade and slide;
+  remote focus moves to the next available tile. Unconfirmed manual writes are never retried
   automatically. These actions do not change the player session
 - **YouTube history sync (optional):** a separate session connected once to the
   TV lets YTV import recent YouTube history and report new playback directly.

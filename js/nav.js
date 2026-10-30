@@ -173,12 +173,43 @@
     bar.firstChild.style.width = (f || 0) * 100 + "%";
   }
 
+  function removeContinueCard(card) {
+    if (card._removing) return;
+    card._removing = true;
+    card.classList.remove('f');
+    // Keep the selected position in the row, even while its old tile fades.
+    if (card === current) {
+      var next = card.nextElementSibling, previous = card.previousElementSibling;
+      while (next && (next._removing || !next.classList.contains('f'))) next = next.nextElementSibling;
+      while (previous && (previous._removing || !previous.classList.contains('f'))) previous = previous.previousElementSibling;
+      if (next || previous) YTV.focus.set(next || previous);
+      else { card.classList.remove('focused'); YTV.focus.first(); }
+    }
+    card.classList.add('leaving');
+    setTimeout(function () {
+      var row = card.parentNode;
+      if (!row) return;
+      card.remove();
+      if (!row.querySelector('.card')) {
+        var title = row.previousElementSibling;
+        if (title && title.classList.contains('row-title')) title.remove();
+        row.remove();
+      }
+    }, 260);
+  }
+
   YTV.ui = {
+    removeContinue: function (id) {
+      Array.prototype.forEach.call(document.querySelectorAll('.continue-watching .card[data-id="' + id + '"]'), removeContinueCard);
+    },
     // Updates every card for this video after it's been played, and removes
     // it from lists that hide watched videos once it's been watched to the end.
     refreshProgress: function (id) {
       var watched = YTV.history.watched(id);
       Array.prototype.forEach.call(document.querySelectorAll('.card[data-id="' + id + '"]'), function (card) {
+        if (card._removing) return;
+        var h = YTV.history.get(id);
+        if (card.closest('.continue-watching') && (!h || h.done || h.live || h.pos < 15)) return removeContinueCard(card);
         if (!(watched && card.closest(".hide-watched"))) return setProgress(card);
         if (card === current) YTV.focus.set(card.nextElementSibling || card.previousElementSibling);
         card.parentNode.removeChild(card);
@@ -207,7 +238,7 @@
       var sub = YTV.el("span", "sub", opts.sub || "");
       t.appendChild(sub);
       parent.appendChild(t);
-      var row = YTV.el("div", "row" + (opts.hideWatched ? " hide-watched" : ""));
+      var row = YTV.el("div", "row" + (opts.hideWatched ? " hide-watched" : "") + (opts.continueWatching ? " continue-watching" : ""));
       parent.appendChild(row);
       var status = YTV.el("div", "message", "Loading…");
       row.appendChild(status);
