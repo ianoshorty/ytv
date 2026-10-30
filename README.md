@@ -48,10 +48,12 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.5: Phase 1, sign-in, subscriptions, resume, and send from your phone.**
+**0.6: Phase 1, sign-in, subscriptions, resume, send from your phone, and Home rows.**
 
-- **Home:** "Continue watching on this TV", then the newest uploads across your
-  subscriptions (cached for 30 minutes)
+- **Home:** rows that scroll sideways: Sent from your phone, Continue watching
+  on this TV, Latest from your subscriptions (no Shorts, cached 30 minutes),
+  and Shorts. Shorts are spotted as vertical videos of 3 minutes or less. The
+  menu shrinks as you scroll along a row; Blue or ← at the start opens it
 - **Recent:** everything played in YTV on this TV, with progress bars; videos
   resume where you stopped (YouTube's own history isn't available to apps)
 - **Send to TV:** save a video to your YouTube playlist called "TV" (e.g. on

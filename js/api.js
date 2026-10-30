@@ -56,23 +56,38 @@
     };
   }
 
-  // Adds durations (and drops videos that no longer exist). 1 unit per 50.
+  // Adds durations and spots Shorts, and drops videos that no longer exist.
+  // 1 unit per 50. The API has no "is a Short" flag, so a Short is a
+  // vertical video of 3 minutes or less; asking for the player's size (with
+  // maxWidth set) reveals the video's shape at no extra cost.
   function addDetails(videos) {
     var chunks = [];
     for (var i = 0; i < videos.length; i += 50) chunks.push(videos.slice(i, i + 50));
     return Promise.all(chunks.map(function (chunk) {
-      return call("videos", { part: "contentDetails", id: chunk.map(function (v) { return v.id; }).join(","), maxResults: 50 }, 1);
+      return call("videos", { part: "contentDetails,player", maxWidth: 1000, id: chunk.map(function (v) { return v.id; }).join(","), maxResults: 50 }, 1);
     })).then(function (pages) {
-      var secs = {};
-      pages.forEach(function (p) { (p.items || []).forEach(function (it) { secs[it.id] = YTV.isoSeconds(it.contentDetails.duration); }); });
-      return videos.filter(function (v) { return v.id in secs; }).map(function (v) { v.seconds = secs[v.id]; return v; });
+      var info = {};
+      pages.forEach(function (p) {
+        (p.items || []).forEach(function (it) {
+          var pl = it.player || {};
+          info[it.id] = {
+            seconds: YTV.isoSeconds(it.contentDetails.duration),
+            vertical: pl.embedHeight && pl.embedWidth ? +pl.embedHeight > +pl.embedWidth : null
+          };
+        });
+      });
+      return videos.filter(function (v) { return v.id in info; }).map(function (v) {
+        var d = info[v.id];
+        v.seconds = d.seconds;
+        v.short = !v.live && (d.vertical === null ? d.seconds <= 60 : d.vertical && d.seconds <= 180);
+        return v;
+      });
     });
   }
 
-  // Shorts can't be identified exactly; anything a minute or under counts.
   function dropShorts(videos) {
     if (!YTV.store.get("hideShorts", true)) return videos;
-    return videos.filter(function (v) { return v.live || v.seconds === null || v.seconds > 60; });
+    return videos.filter(function (v) { return !v.short; });
   }
 
   YTV.api = {
@@ -119,11 +134,12 @@
       });
     },
 
-    // Newest uploads across all subscriptions. Costs about 1 unit per
-    // subscribed channel, so it's cached for 30 minutes.
+    // Newest uploads across all subscriptions, Shorts included (each video
+    // has .short). Costs about 1 unit per subscribed channel, so it's cached
+    // for 30 minutes.
     feed: function (force) {
       var cached = YTV.store.get("feed", null);
-      if (!force && cached && Date.now() - cached.at < FEED_TTL) return Promise.resolve(cached.videos);
+      if (!force && cached && cached.v === 2 && Date.now() - cached.at < FEED_TTL) return Promise.resolve(cached.videos);
       return YTV.api.subscriptions(force).then(function (channels) {
         var all = [];
         var queue = channels.slice();
@@ -138,11 +154,13 @@
         for (var i = 0; i < 6; i++) workers.push(worker());
         return Promise.all(workers).then(function () {
           all.sort(function (a, b) { return a.published < b.published ? 1 : -1; });
-          return addDetails(all.slice(0, 120));
+          return addDetails(all.slice(0, 160));
         });
       }).then(function (videos) {
-        videos = dropShorts(videos).slice(0, 80);
-        YTV.store.set("feed", { at: Date.now(), videos: videos });
+        var longs = videos.filter(function (v) { return !v.short; }).slice(0, 80);
+        var shorts = videos.filter(function (v) { return v.short; }).slice(0, 40);
+        videos = longs.concat(shorts);
+        YTV.store.set("feed", { v: 2, at: Date.now(), videos: videos });
         return videos;
       });
     },

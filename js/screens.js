@@ -28,31 +28,22 @@
     return true;
   }
 
-  function rowTitle(el, title, sub) {
-    var t = YTV.el("div", "row-title");
-    t.appendChild(YTV.el("h2", null, title));
-    var s = YTV.el("span", "sub", sub || "");
-    t.appendChild(s);
-    el.appendChild(t);
-    return s;
-  }
-
-  // --- Home: continue watching, then newest uploads from subscriptions -----
+  // --- Home: rows that scroll sideways --------------------------------------
+  // Sent from your phone · Continue watching · Latest from your subscriptions
+  // (no Shorts) · Shorts from your subscriptions
   S.home = function (el, params) {
     var h = header(el, "Home");
 
     var sent = YTV.send.pending();
     if (sent.length && YTV.auth.signedIn()) {
-      rowTitle(el, "Sent from your phone", sent.length > 4 ? sent.length + " waiting" : "");
-      YTV.ui.videoGrid(el, function () {
-        return Promise.resolve({ videos: sent.slice(0, 4).map(function (q) { return q.video; }) });
-      }, 4);
+      YTV.ui.videoRow(el, "Sent from your phone", function () {
+        return Promise.resolve(sent.map(function (q) { return q.video; }));
+      }, { sub: sent.length + " waiting" });
     }
 
     var unfinished = YTV.history.unfinished();
     if (unfinished.length) {
-      rowTitle(el, "Continue watching on this TV");
-      YTV.ui.videoGrid(el, function () { return Promise.resolve({ videos: unfinished.slice(0, 4) }); }, 4);
+      YTV.ui.videoRow(el, "Continue watching on this TV", function () { return Promise.resolve(unfinished); });
     }
 
     if (needsSetup(el)) return;
@@ -66,16 +57,19 @@
     }
     h.appendChild(YTV.el("div", "sub"));
     h.appendChild(YTV.ui.button("Refresh", function () { YTV.nav.go("home", { force: true }, true); }, "small"));
-    var cached = YTV.store.get("feed", null);
-    var sub = rowTitle(el, "Latest from your subscriptions");
-    // Videos you've watched to the end are left out (they're in Recent).
-    YTV.ui.videoGrid(el, function () {
-      return YTV.api.feed(params.force).then(function (videos) {
-        var f = YTV.store.get("feed", cached);
-        if (f) sub.textContent = "updated " + YTV.ago(f.at);
-        return { videos: videos.filter(function (v) { return !YTV.history.watched(v.id); }) };
-      });
-    }, 4, { hideWatched: true });
+    // One fetch feeds both rows. Videos you've watched to the end are left
+    // out (they're in Recent).
+    var feed = YTV.api.feed(params.force).then(function (videos) {
+      var f = YTV.store.get("feed", null);
+      if (f) sub.textContent = "updated " + YTV.ago(f.at);
+      return videos.filter(function (v) { return !YTV.history.watched(v.id); });
+    });
+    var sub = YTV.ui.videoRow(el, "Latest from your subscriptions", function () {
+      return feed.then(function (v) { return v.filter(function (x) { return !x.short; }); });
+    }, { hideWatched: true });
+    YTV.ui.videoRow(el, "Shorts", function () {
+      return feed.then(function (v) { return v.filter(function (x) { return x.short; }); });
+    }, { hideWatched: true, sub: "from your subscriptions", empty: "No recent Shorts from your subscriptions." });
   };
 
   // --- Recent: everything played on this TV --------------------------------
@@ -234,7 +228,7 @@
       ["OK", "Open or play"],
       ["Back", "Go back a screen"],
       ["Back twice on Home", "Exit YTV"],
-      ["← from the left edge", "Open the menu"],
+      ["Blue  or  ← at the start", "Open the menu (it shrinks as you scroll along a row)"],
       ["0–9 (in Search)", "Type a digit"]
     ]],
     ["Playing a video", [

@@ -31,8 +31,16 @@
         })
       });
     }
+    // The Gangnam Style sample stands in for a Short: vertical and 45 s.
     if (path === "videos") {
-      return later({ items: p.id.split(",").map(function (id, i) { return { id: id, contentDetails: { duration: "PT" + (3 + i % 20) + "M" + (i * 7 % 60) + "S" } }; }) });
+      return later({ items: p.id.split(",").map(function (id, i) {
+        var short = id === "9bZkp7q19f0";
+        return {
+          id: id,
+          contentDetails: { duration: short ? "PT45S" : "PT" + (3 + i % 20) + "M" + (i * 7 % 60) + "S" },
+          player: short ? { embedWidth: 563, embedHeight: 1000 } : { embedWidth: 1000, embedHeight: 563 }
+        };
+      }) });
     }
     if (path === "subscriptions") {
       return later({ items: CHANNELS.map(function (c, i) {

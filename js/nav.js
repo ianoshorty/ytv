@@ -13,6 +13,24 @@
 
   function visible(el) { return el.offsetParent !== null; }
 
+  // Can focus go to o from the current element? Items scrolled out of view
+  // in other rows don't count (otherwise ← could jump to a hidden tile in
+  // another row instead of opening the menu); items in your own row do.
+  function reachable(o) {
+    if (o === current || !visible(o)) return false;
+    var row = o.closest(".row");
+    if (!row || row === current.closest(".row")) return true;
+    var r = o.getBoundingClientRect(), box = row.getBoundingClientRect();
+    return r.right > box.left + 1 && r.left < box.right - 1;
+  }
+
+  // The menu shrinks while you're along a row and comes back at its start.
+  function updateRail(el) {
+    var row = el.closest(".row");
+    if (row && !el.previousElementSibling) row.scrollLeft = 0;
+    document.body.classList.toggle("rail-min", !!(row && row.scrollLeft > 0));
+  }
+
   function score(a, b, dir) {
     var ax = (a.left + a.right) / 2, ay = (a.top + a.bottom) / 2;
     var bx = (b.left + b.right) / 2, by = (b.top + b.bottom) / 2;
@@ -34,8 +52,12 @@
       el.classList.add("focused");
       if (!el.closest("#rail")) lastContentFocus = el;
       el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      updateRail(el);
       if (el._focus) el._focus();
     },
+
+    // Opens the menu on the current section (Blue, or ← from a row's start).
+    rail: function () { YTV.focus.set(document.querySelector("#rail .f.active")); },
 
     // First video or channel in the visible screen, else its first button.
     first: function () {
@@ -57,9 +79,9 @@
       if (!inRail && dir === "left") {
         var screen = YTV.nav.top();
         var leftmost = screen && Array.prototype.every.call(screen.el.querySelectorAll(".f"), function (o) {
-          return !visible(o) || o === current || score(current.getBoundingClientRect(), o.getBoundingClientRect(), "left") === null;
+          return !reachable(o) || score(current.getBoundingClientRect(), o.getBoundingClientRect(), "left") === null;
         });
-        if (leftmost) return YTV.focus.set(document.querySelector("#rail .f.active"));
+        if (leftmost) return YTV.focus.rail();
       }
       if (inRail && dir === "right") {
         if (lastContentFocus && visible(lastContentFocus)) return YTV.focus.set(lastContentFocus);
@@ -69,7 +91,7 @@
       var a = current.getBoundingClientRect();
       var best = null, bestScore = Infinity;
       Array.prototype.forEach.call(scope.querySelectorAll(".f"), function (o) {
-        if (o === current || !visible(o)) return;
+        if (!reachable(o)) return;
         var s = score(a, o.getBoundingClientRect(), dir);
         if (s !== null && s < bestScore) { best = o; bestScore = s; }
       });
@@ -158,8 +180,35 @@
       return m;
     },
 
+    // A titled row of videos that scrolls sideways (Home).
+    // load() -> Promise<videos>. opts.hideWatched as for videoGrid.
+    videoRow: function (parent, title, load, opts) {
+      opts = opts || {};
+      var t = YTV.el("div", "row-title");
+      t.appendChild(YTV.el("h2", null, title));
+      var sub = YTV.el("span", "sub", opts.sub || "");
+      t.appendChild(sub);
+      parent.appendChild(t);
+      var row = YTV.el("div", "row" + (opts.hideWatched ? " hide-watched" : ""));
+      parent.appendChild(row);
+      var status = YTV.el("div", "message", "Loading…");
+      row.appendChild(status);
+      load().then(function (videos) {
+        row.removeChild(status);
+        if (!videos.length) row.appendChild(YTV.el("div", "message", opts.empty || "Nothing here."));
+        videos.forEach(function (v, i) {
+          row.appendChild(YTV.ui.videoCard(v, function () { YTV.player.play(videos, i); }));
+        });
+        YTV.focus.settle();
+      }, function (e) {
+        status.textContent = e.message;
+        status.className = "message bad";
+      });
+      return sub;
+    },
+
     videoCard: function (v, onSelect) {
-      var card = YTV.el("div", "card f");
+      var card = YTV.el("div", "card f" + (v.short ? " short" : ""));
       var thumb = YTV.el("div", "thumb");
       if (v.thumb) {
         var img = YTV.el("img");
