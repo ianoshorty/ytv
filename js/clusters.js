@@ -1,9 +1,10 @@
 // Groups videos into Home rows by what they're about, using only data YTV
 // already fetches (no extra quota):
 // - specific rows from topic labels and tags that several videos share
-//   (e.g. "World of Warcraft", "Role-playing video game")
-// - broad rows from YouTube's own categories (Gaming, News & Politics, ...)
-// A video can appear in more than one row, as on YouTube.
+//   (e.g. "Formula 1", "World of Warcraft")
+// - then broad rows from YouTube's own categories (Gaming, News & Politics, ...)
+// Each video goes in one row only, and bigger groups are picked first, so
+// "Formula 1" takes the F1 videos rather than one row per driver.
 (function () {
   "use strict";
 
@@ -12,7 +13,6 @@
   var MIN_CATEGORY = 3; // videos needed for a category row
   var MAX_SPECIFIC = 4;
   var MAX_CATEGORY = 6;
-  var OVERLAP = 0.7; // rows sharing this much are duplicates; keep the bigger
 
   var CATEGORIES = {
     1: "Film & Animation", 2: "Cars & Vehicles", 10: "Music", 15: "Pets & Animals", 17: "Sport",
@@ -49,28 +49,25 @@
     return Object.keys(groups).map(function (k) { return groups[k]; });
   }
 
-  // How alike two rows are: shared videos over the bigger row's size, so a
-  // small row inside a big one (World of Warcraft inside Gaming) isn't a
-  // duplicate, but two near-identical rows are.
-  function overlap(a, b) {
-    var ids = {};
-    a.videos.forEach(function (v) { ids[v.id] = true; });
-    var shared = b.videos.filter(function (v) { return ids[v.id]; }).length;
-    return shared / Math.max(a.videos.length, b.videos.length);
-  }
-
-  // Keeps the biggest groups that aren't near-duplicates of ones already kept
-  // (or of anything in `against`).
-  function pick(groups, min, max, against) {
-    var kept = [];
-    groups.filter(function (g) { return g.videos.length >= min; })
-      .sort(function (a, b) { return b.videos.length - a.videos.length; })
-      .forEach(function (g) {
-        if (kept.length >= max) return;
-        var dup = kept.concat(against).some(function (k) { return overlap(k, g) >= OVERLAP; });
-        if (!dup) kept.push(g);
+  // Repeatedly takes the group with the most videos not yet in a row, until
+  // none has `min` left or `max` rows are made. `taken` (video id -> true) is
+  // shared between calls, so each video lands in one row only. On a tie the
+  // earlier group in the list wins.
+  function pick(groups, min, max, taken) {
+    var rows = [];
+    var left = groups.slice();
+    while (rows.length < max) {
+      var best = -1, bestFree = [];
+      left.forEach(function (g, i) {
+        var free = g.videos.filter(function (v) { return !taken[v.id]; });
+        if (free.length > bestFree.length) { best = i; bestFree = free; }
       });
-    return kept;
+      if (best < 0 || bestFree.length < min) break;
+      bestFree.forEach(function (v) { taken[v.id] = true; });
+      rows.push({ title: left[best].title, videos: bestFree });
+      left.splice(best, 1);
+    }
+    return rows;
   }
 
   // Keeps the uploader's capitals if they used any ("World of Warcraft"),
@@ -83,8 +80,10 @@
     }).join(" ");
   }
 
-  // videos -> [{title, videos}], specific rows first, then categories.
+  // videos -> [{title, videos}], specific rows first, then categories for
+  // whatever's left.
   YTV.clusters = function (videos) {
+    var taken = {};
     var channelNames = {};
     videos.forEach(function (v) { channelNames[norm(v.channel)] = true; });
     var topics = collect(videos, function (v) {
@@ -101,13 +100,10 @@
     });
     // Tags go first so that on a tie the more specific name wins
     // ("World of Warcraft" over "Role-playing video game").
-    var specific = pick(tags.concat(topics), MIN_SPECIFIC, MAX_SPECIFIC, []);
-    // A category row that's nearly the same as a specific row (all your
-    // Gaming is World of Warcraft) is dropped in favour of the specific one.
+    var specific = pick(tags.concat(topics), MIN_SPECIFIC, MAX_SPECIFIC, taken);
     var categories = pick(collect(videos, function (v) {
       return CATEGORIES[v.category] ? [CATEGORIES[v.category]] : [];
-    }), MIN_CATEGORY, MAX_CATEGORY, specific);
-
-    return specific.concat(categories).map(function (g) { return { title: g.title, videos: g.videos }; });
+    }), MIN_CATEGORY, MAX_CATEGORY, taken);
+    return specific.concat(categories);
   };
 })();
