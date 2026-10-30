@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>YTV connection check</title>
+<style>
+body{background:#111;color:#eee;font:25px/1.5 sans-serif;margin:40px;max-width:1000px}
+button,a{font:inherit;padding:18px;margin:12px;display:inline-block}
+button:focus,a:focus{outline:5px solid gold}pre{white-space:pre-wrap;font:inherit}
+</style>
+<h1>YTV connection check</h1>
+<p>Checks whether this TV can connect directly to YouTube from the YTV website.
+This uses no account session and makes no history or sign-in changes.</p>
+<button id="run" autofocus>Test this TV</button>
+<pre id="result">Ready.</pre>
+<a href="../">Open YTV</a>
+<script>
+(function () {
+  'use strict';
+  var button = document.getElementById('run'), output = document.getElementById('result');
+  button.onclick = async function () {
+    button.disabled = true;
+    output.textContent = 'Checking…';
+    var controller = new AbortController(), timer = setTimeout(function () { controller.abort(); }, 18000);
+    try {
+      var response = await fetch('http://localhost:9009/service/basic/fetcher', {
+        method: 'POST', credentials: 'omit', redirect: 'error', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api: 'fetchResponse', args: {
+          url: 'https://www.youtube.com/robots.txt', method: 'head', timeout: 8,
+          custom_headers: {}, withCredentials: false, certLapsedFunctional: false
+        } })
+      });
+      var data = await response.json();
+      output.textContent = response.ok && data.ret === true ?
+        'PASS — YTV’s website can use the TV’s native connection to YouTube. No Mac connection was used.' :
+        'The TV service responded, but the YouTube check failed. HTTP ' + response.status + ', remote status ' + (data.msg && data.msg.status != null ? data.msg.status : 'unavailable') + '.';
+    } catch (_) {
+      output.textContent = 'The native connection was unavailable or blocked from this page. No sign-in or history changes were made.';
+    } finally { clearTimeout(timer); }
+  };
+  button.focus();
+})();
+</script>
+</html>
