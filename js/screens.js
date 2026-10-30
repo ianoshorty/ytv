@@ -103,7 +103,7 @@
       });
     }, 'small');
     h.appendChild(syncButton);
-    var outcome = YTV.ui.message(el, 'Sends TV progress only when it is ahead of YouTube. Entries with unknown cloud progress are skipped.', 'hint');
+    var outcome = YTV.ui.message(el, 'Sends TV progress only when it is ahead of YouTube. Unknown cloud progress is skipped unless the TV record is complete.', 'hint');
     if (!list.length) {
       YTV.ui.message(el, "Nothing yet. Videos you play in YTV will appear here, with where you stopped.");
       return;

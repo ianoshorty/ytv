@@ -61,7 +61,8 @@ The installer isn't in this repo. It's built on what these projects documented:
 - **Recent:** the last 12 videos played in YTV on this TV, with progress bars.
   **Sync progress to YouTube** compares the raw TV playback record with a fresh
   history read and sends only progress that is further ahead. Videos with
-  unknown cloud progress or missing local duration are skipped; progress
+  unknown cloud progress are skipped unless locally complete. Missing local
+  durations are skipped; progress
   already further ahead on YouTube is preserved. At most 12 videos are checked,
   with one player lookup and two reporting requests per changed video.
 - **Video actions:** hold OK for about a second on any video card to mark it

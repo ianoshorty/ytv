@@ -238,8 +238,9 @@
         var remote = cloud.find(function (v) { return v.id === video.id; });
         var fraction = Math.min(1, position / duration);
         if (remote && typeof remote.fraction === 'number' && (remote.fraction >= fraction || remote.fraction >= 0.95 && video.done)) { result.skipped++; continue; }
-        // Unknown cloud progress could already be ahead. Do not overwrite it.
-        if (remote && remote.fraction === null) { result.skipped++; continue; }
+        // Unknown partial progress could already be ahead. A full completion
+        // cannot lower it, so an explicitly completed TV record is safe.
+        if (remote && remote.fraction === null && !video.done) { result.skipped++; continue; }
         if (remembered(video.id, position, duration)) { result.awaiting++; continue; }
         try { await report(video, false, check); result.updated++; }
         catch (e) { result.failed++; result.remaining = videos.length - i - 1; result.error = e.message; break; }
