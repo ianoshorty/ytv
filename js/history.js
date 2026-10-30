@@ -62,6 +62,12 @@
       return h.seconds ? Math.min(1, h.pos / h.seconds) : 0;
     },
 
+    // Watched to the end (95% or more).
+    watched: function (id) {
+      var h = find(all(), id);
+      return !!(h && h.done);
+    },
+
     // Not finished and started: what "Continue watching" shows.
     unfinished: function () {
       return all().filter(function (h) { return !h.done && !h.live && h.pos >= MIN_RESUME; });

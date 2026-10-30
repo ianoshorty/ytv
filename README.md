@@ -76,10 +76,6 @@ The embedded player can't be told a quality directly, so the quality setting
 changes the size the player is laid out at, which YouTube uses to choose. The
 info bar shows what was asked for and what YouTube is playing.
 
-Ads and watch history follow whether the TV's web engine is signed in to
-YouTube. YTV's own sign-in is read-only API access and doesn't affect the
-player.
-
 Try it without any keys at `https://ianoshorty.github.io/ytv/?mock=1`
 (sample data).
 
@@ -99,8 +95,9 @@ and the tokens stay on the TV.
 
 ## Notes
 
+Player-session setup notes are kept separately in the private workspace file
+`YOUTUBE_PREMIUM.md` (outside this public repository).
+
 - Unofficial, personal project. Not affiliated with YouTube, Google or Hisense.
-- Uses YouTube's official embedded player and doesn't block or skip ads.
-  YouTube Premium is the way to go ad-free.
 - This repo is public (GitHub Pages on the free plan), so it must never contain
   secrets, account details or personal data.

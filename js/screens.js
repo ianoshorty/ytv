@@ -68,13 +68,14 @@
     h.appendChild(YTV.ui.button("Refresh", function () { YTV.nav.go("home", { force: true }, true); }, "small"));
     var cached = YTV.store.get("feed", null);
     var sub = rowTitle(el, "Latest from your subscriptions");
+    // Videos you've watched to the end are left out (they're in Recent).
     YTV.ui.videoGrid(el, function () {
       return YTV.api.feed(params.force).then(function (videos) {
         var f = YTV.store.get("feed", cached);
         if (f) sub.textContent = "updated " + YTV.ago(f.at);
-        return { videos: videos };
+        return { videos: videos.filter(function (v) { return !YTV.history.watched(v.id); }) };
       });
-    }, 4);
+    }, 4, { hideWatched: true });
   };
 
   // --- Recent: everything played on this TV --------------------------------

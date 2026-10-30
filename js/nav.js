@@ -134,9 +134,16 @@
   }
 
   YTV.ui = {
-    // Updates every card for this video after it's been played.
+    // Updates every card for this video after it's been played, and removes
+    // it from lists that hide watched videos once it's been watched to the end.
     refreshProgress: function (id) {
-      Array.prototype.forEach.call(document.querySelectorAll('.card[data-id="' + id + '"]'), setProgress);
+      var watched = YTV.history.watched(id);
+      Array.prototype.forEach.call(document.querySelectorAll('.card[data-id="' + id + '"]'), function (card) {
+        if (!(watched && card.closest(".hide-watched"))) return setProgress(card);
+        if (card === current) YTV.focus.set(card.nextElementSibling || card.previousElementSibling);
+        card.parentNode.removeChild(card);
+        if (card === current) YTV.focus.first();
+      });
     },
 
     button: function (label, onSelect, cls) {
@@ -175,9 +182,10 @@
 
     // A grid of videos that loads more when you reach the last row.
     // load(token) -> Promise<{videos, next}>
-    videoGrid: function (parent, load, cols) {
+    // opts.hideWatched: drop a card once its video has been watched to the end.
+    videoGrid: function (parent, load, cols, opts) {
       cols = cols || 4;
-      var grid = YTV.el("div", "grid cols-" + cols);
+      var grid = YTV.el("div", "grid cols-" + cols + (opts && opts.hideWatched ? " hide-watched" : ""));
       parent.appendChild(grid);
       var status = YTV.el("div", "message", "Loading…");
       parent.appendChild(status);
