@@ -171,7 +171,10 @@
     retry: function () { return flush(true); },
     begin: function (video, at) {
       if (!enabled() || !Core.validId(video.id)) return;
-      var bytes = crypto.getRandomValues(new Uint8Array(16));
+      // cpn correlates playback reports; it is not an authentication secret.
+      var bytes = new Uint8Array(16);
+      if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes);
+      else for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
       current = { id: video.id, cpn: Array.from(bytes).map(function (v) { return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'[v & 63]; }).join(''),
         pos: at || 0, duration: video.seconds || 0, last: { pos: at || 0, at: Date.now() }, realSeconds: 0, ranges: [], seq: 0, playbackSent: false, final: false, closed: false, queued: false, uncertain: false };
     },
