@@ -4,7 +4,7 @@
   "use strict";
 
   var YTV = window.YTV = {};
-  YTV.VERSION = "0.4.0";
+  YTV.VERSION = "0.5.0";
 
   YTV.el = function (tag, cls, text) {
     var e = document.createElement(tag);

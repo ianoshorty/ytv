@@ -158,6 +158,49 @@
         var it = (body.items || [])[0];
         return it ? YTV.decode(it.snippet.title) : "your account";
       });
+    },
+
+    // Your playlist called "TV" (any case), or null. 1 unit, cached.
+    tvPlaylist: function (force) {
+      var cached = YTV.store.get("tvPlaylist", null);
+      if (!force && cached) return Promise.resolve(cached);
+      var found = null;
+      function page(token) {
+        var p = { part: "snippet", mine: "true", maxResults: 50 };
+        if (token) p.pageToken = token;
+        return call("playlists", p, 1, true).then(function (body) {
+          (body.items || []).forEach(function (it) {
+            if (!found && it.snippet.title.trim().toLowerCase() === "tv") found = it.id;
+          });
+          return found || !body.nextPageToken ? found : page(body.nextPageToken);
+        });
+      }
+      return page().then(function (id) {
+        if (id) YTV.store.set("tvPlaylist", id);
+        return id;
+      });
+    },
+
+    // Everything in a playlist: [{item, addedAt, video}], newest addition
+    // first. 1 unit per 50 items. Deleted and private videos are skipped.
+    playlistQueue: function (playlistId) {
+      var out = [];
+      function page(token) {
+        var p = { part: "snippet", playlistId: playlistId, maxResults: 50 };
+        if (token) p.pageToken = token;
+        return call("playlistItems", p, 1, true).then(function (body) {
+          (body.items || []).forEach(function (it) {
+            var sn = it.snippet;
+            if (!sn.resourceId || !sn.videoOwnerChannelTitle) return; // deleted or private
+            out.push({ item: it.id, addedAt: sn.publishedAt, video: fromSnippet(sn.resourceId.videoId, sn) });
+          });
+          return body.nextPageToken && out.length < 200 ? page(body.nextPageToken) : out;
+        });
+      }
+      return page().then(function (items) {
+        items.sort(function (a, b) { return a.addedAt < b.addedAt ? 1 : -1; });
+        return items;
+      });
     }
   };
 })();

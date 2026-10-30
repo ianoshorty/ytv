@@ -48,12 +48,16 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.4: Phase 1, sign-in, subscriptions, and resume on this TV.**
+**0.5: Phase 1, sign-in, subscriptions, resume, and send from your phone.**
 
 - **Home:** "Continue watching on this TV", then the newest uploads across your
   subscriptions (cached for 30 minutes)
 - **Recent:** everything played in YTV on this TV, with progress bars; videos
   resume where you stopped (YouTube's own history isn't available to apps)
+- **Send to TV:** save a video to your YouTube playlist called "TV" (e.g. on
+  your phone) and YTV plays it within about 10 seconds while it's open, or
+  offers it (Blue) if something's already playing. Read-only access means it
+  can't remove videos from the playlist, so it remembers what it has played
 - **Subscriptions:** your channels A–Z, each opening its uploads
 - **Search:** on-screen keyboard (number keys type digits), recent searches
 - **Player:** full screen, speed 0.25–2x, captions toggle and a quality
@@ -65,7 +69,7 @@ The installer isn't in this repo. It's built on what these projects documented:
 Remote, browsing: arrows move · OK select · Back goes back (twice on Home
 exits).
 Remote, playing: OK play/pause · ←/→ 10 s · rewind/fast-forward 30 s ·
-↑/↓ speed · 0–9 jump to 0–90% · Red info · Green captions · Yellow quality ·
+↑/↓ speed · 0–9 jump to 0–90% · Red info · Green captions · Yellow quality · Blue play what your phone sent ·
 Back or Stop close.
 
 The embedded player can't be told a quality directly, so the quality setting

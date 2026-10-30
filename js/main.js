@@ -48,4 +48,5 @@
   });
 
   YTV.nav.go("home", {}, true);
+  YTV.send.start();
 })();

@@ -41,6 +41,14 @@
   S.home = function (el, params) {
     var h = header(el, "Home");
 
+    var sent = YTV.send.pending();
+    if (sent.length && YTV.auth.signedIn()) {
+      rowTitle(el, "Sent from your phone", sent.length > 4 ? sent.length + " waiting" : "");
+      YTV.ui.videoGrid(el, function () {
+        return Promise.resolve({ videos: sent.slice(0, 4).map(function (q) { return q.video; }) });
+      }, 4);
+    }
+
     var unfinished = YTV.history.unfinished();
     if (unfinished.length) {
       rowTitle(el, "Continue watching on this TV");
@@ -218,6 +226,7 @@
       ["Red", "Show or hide the info bar"],
       ["Green", "Captions on or off"],
       ["Yellow", "Change quality (1080p → 1440p → 4K → 480p → 720p)"],
+      ["Blue", "Play the video just sent from your phone"],
       ["Back  or  Stop", "Close the video"]
     ]]
   ];
@@ -304,6 +313,8 @@
     label();
     settings.appendChild(shorts);
     settings.appendChild(YTV.el("div", "info", "While playing: ↑/↓ speed, Green captions, Yellow quality. All three are remembered between videos."));
+    settings.appendChild(YTV.el("div", "info", "Send to TV: on your phone, Save a video to your playlist called “TV”. YTV plays it within about 10 seconds while it's open (status: " +
+      YTV.send.status + "). YTV can't remove videos from that playlist, so tidy it on your phone now and then."));
     settings.appendChild(YTV.el("div", "info", "Ads and watch history: YouTube's player only knows about Premium and records history if you're signed in to YouTube in the TV's web browser. Signing in above only lets YTV read your subscriptions."));
     settings.appendChild(YTV.el("div", "info", "YouTube allowance used today: about " + YTV.quotaToday() + " of 10,000 units."));
     settings.appendChild(YTV.el("div", "info", launchInfo()));

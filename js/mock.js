@@ -39,6 +39,18 @@
         return { snippet: { title: c, resourceId: { channelId: "UCsample" + i }, thumbnails: { "default": {} } } };
       }) });
     }
+    // A "TV" playlist. Tests add to window.mockTvQueue (or the stored
+    // mockTvQueue, for items there before YTV opens) to simulate sending.
+    if (path === "playlists") return later({ items: [{ id: "PLmockTV", snippet: { title: "TV" } }] });
+    if (path === "playlistItems" && p.playlistId === "PLmockTV") {
+      return later({ items: (window.mockTvQueue || YTV.store.get("mockTvQueue", [])).map(function (q) {
+        var v = video(q.n, "Sample Phone");
+        v.publishedAt = q.addedAt;
+        v.resourceId = { videoId: q.id || v.id };
+        v.videoOwnerChannelTitle = "Sample Phone";
+        return { id: q.item, snippet: v };
+      }) });
+    }
     if (path === "playlistItems") {
       var ch = CHANNELS[+p.playlistId.replace("UUsample", "")] || "Sample channel";
       return later({ items: Array.apply(null, Array(+p.maxResults)).map(function (_, i) {

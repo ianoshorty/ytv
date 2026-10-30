@@ -1,6 +1,7 @@
 // Full-screen player using YouTube's official embedded player.
 // Remote: OK play/pause · ←/→ seek 10 s · ↑/↓ speed · 0–9 jump to 0–90% ·
-// Red info · Green captions · Yellow quality · Back close.
+// Red info · Green captions · Yellow quality · Blue play what your phone
+// just sent · Back close.
 (function () {
   "use strict";
 
@@ -17,7 +18,7 @@
     { h: 480, label: "480p" },
     { h: 720, label: "720p" }
   ];
-  var KEY = { OK: 13, LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, RED: 403, GREEN: 404, YELLOW: 405,
+  var KEY = { OK: 13, LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, RED: 403, GREEN: 404, YELLOW: 405, BLUE: 406,
     PLAY: 415, PAUSE: 19, PLAY_PAUSE: 179, FF: 417, RW: 412, STOP: 413 };
   var BACK = [8, 27, 461];
 
@@ -183,6 +184,8 @@
   YTV.player = {
     isOpen: function () { return open; },
 
+    isPlaying: function (id) { return open && video().id === id; },
+
     play: function (videos, i) {
       if (!layer) build();
       list = videos;
@@ -196,6 +199,7 @@
       showHud();
       var at = YTV.history.resumeAt(v.id);
       YTV.history.start(v);
+      YTV.send.markPlayed(v.id);
       loadApi().then(function () {
         if (!open) return;
         yt.loadVideoById({ videoId: v.id, startSeconds: at });
@@ -229,6 +233,7 @@
       else if (code === KEY.DOWN) setSpeed(-1);
       else if (code === KEY.GREEN) toggleCaptions();
       else if (code === KEY.YELLOW) nextQuality();
+      else if (code === KEY.BLUE) { if (!YTV.send.playWaiting()) YTV.toast("Nothing waiting from your phone"); }
       else if (code >= 48 && code <= 57) {
         yt.seekTo((yt.getDuration() || 0) * (code - 48) / 10, true);
         YTV.toast((code - 48) * 10 + "%");
