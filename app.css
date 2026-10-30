@@ -73,6 +73,14 @@ h2 { font-size: 18px; margin: 18px 0 8px; color: var(--dim); font-weight: normal
 .code-panel .code { font-size: 54px; letter-spacing: 6px; font-weight: bold; margin-top: 10px; color: var(--text); }
 .settings .info { color: var(--dim); font-size: 14px; margin: 6px 0; }
 
+/* Controls */
+.controls { display: flex; gap: 40px; }
+.controls-col { flex: 1; }
+.controls-col h2 { margin-top: 4px; }
+.control { display: flex; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.control-key { width: 190px; flex: none; font-weight: bold; }
+.control-does { color: var(--dim); }
+
 /* Toast */
 #toast { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); background: rgba(0,0,0,.88); padding: 8px 18px; border-radius: 8px; display: none; z-index: 40; }
 

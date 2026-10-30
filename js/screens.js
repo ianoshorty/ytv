@@ -168,6 +168,47 @@
     };
   };
 
+  // --- Controls: what every remote button does -----------------------------
+  var CONTROLS = [
+    ["Browsing", [
+      ["Arrows", "Move around"],
+      ["OK", "Open or play"],
+      ["Back", "Go back a screen"],
+      ["Back twice on Home", "Exit YTV"],
+      ["← from the left edge", "Open the menu"],
+      ["0–9 (in Search)", "Type a digit"]
+    ]],
+    ["Playing a video", [
+      ["OK  or  Play/Pause", "Play or pause"],
+      ["← / →", "Back or forward 10 seconds"],
+      ["Rewind / Fast-forward", "Back or forward 30 seconds"],
+      ["↑ / ↓", "Faster or slower (0.25x–2x)"],
+      ["0–9", "Jump to 0%–90% of the video"],
+      ["Red", "Show or hide the info bar"],
+      ["Green", "Captions on or off"],
+      ["Yellow", "Change quality (1080p → 1440p → 4K → 480p → 720p)"],
+      ["Back  or  Stop", "Close the video"]
+    ]]
+  ];
+
+  S.controls = function (el) {
+    header(el, "Controls", "Speed, captions and quality are remembered between videos");
+    var cols = YTV.el("div", "controls");
+    CONTROLS.forEach(function (group) {
+      var col = YTV.el("div", "controls-col");
+      col.appendChild(YTV.el("h2", null, group[0]));
+      group[1].forEach(function (row) {
+        var r = YTV.el("div", "control");
+        r.appendChild(YTV.el("span", "control-key", row[0]));
+        r.appendChild(YTV.el("span", "control-does", row[1]));
+        col.appendChild(r);
+      });
+      cols.appendChild(col);
+    });
+    el.appendChild(cols);
+    YTV.ui.message(el, "The info bar shows the quality you asked for and what YouTube is actually playing. YouTube makes the final choice.", "hint");
+  };
+
   // --- Account: sign in/out and settings -----------------------------------
   S.account = function (el) {
     header(el, "Account");

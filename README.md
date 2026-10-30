@@ -48,19 +48,30 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.2: Phase 1 plus sign-in and subscriptions.**
+**0.3: Phase 1 plus sign-in and subscriptions.**
 
 - **Home:** newest uploads across your subscriptions (cached for 30 minutes)
 - **Subscriptions:** your channels A–Z, each opening its uploads
 - **Search:** on-screen keyboard (number keys type digits), recent searches
-- **Player:** full screen, 1080p, speed 0.25–2x remembered between videos
+- **Player:** full screen, speed 0.25–2x, captions toggle and a quality
+  setting, all remembered between videos
+- **Controls:** a list of what every remote button does
 - **Account:** sign in with a code at google.com/device, sign out (revokes the
   token), hide Shorts, today's API usage
 
 Remote, browsing: arrows move · OK select · Back goes back (twice on Home
 exits).
-Remote, playing: OK play/pause · ←/→ 10 s · ↑/↓ speed · 0–9 jump to 0–90% ·
-Red info · Back close.
+Remote, playing: OK play/pause · ←/→ 10 s · rewind/fast-forward 30 s ·
+↑/↓ speed · 0–9 jump to 0–90% · Red info · Green captions · Yellow quality ·
+Back or Stop close.
+
+The embedded player can't be told a quality directly, so the quality setting
+changes the size the player is laid out at, which YouTube uses to choose. The
+info bar shows what was asked for and what YouTube is playing.
+
+Ads and watch history follow whether the TV's web engine is signed in to
+YouTube. YTV's own sign-in is read-only API access and doesn't affect the
+player.
 
 Try it without any keys at `https://ianoshorty.github.io/ytv/?mock=1`
 (sample data).
