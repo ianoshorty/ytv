@@ -1,6 +1,6 @@
 # Watch history
 
-Current behavior in YTV **0.9.2**, documented 30 October 2026. This is the
+Current behavior in YTV **0.9.3**, documented 30 October 2026. This is the
 reference for watch-history behavior and implementation; the main README keeps
 only the feature overview and controls. Private connection/recovery tools and
 account-specific findings remain outside this public repository.

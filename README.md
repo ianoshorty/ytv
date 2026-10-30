@@ -48,8 +48,8 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.9.2: TV-native history sync, video actions with immediate Continue watching
-dismissal, subscriptions, resume and Home rows.**
+**0.9.3: stronger embedded-player input isolation, alongside TV-native history
+sync, video actions, subscriptions, resume and Home rows.**
 
 - **Home:** rows that scroll sideways: Sent from your phone, Continue watching,
   Latest from your subscriptions (no Shorts, cached 30 minutes),

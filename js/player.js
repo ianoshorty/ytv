@@ -39,6 +39,7 @@
     hudMeta = document.getElementById("hud-meta");
     hudState = document.getElementById("hud-state");
     fill = document.getElementById("hud-fill");
+    layer.tabIndex = -1; // a focus target for remote keys, outside YouTube
     // Made here rather than in index.html, which the TV keeps cached.
     // A clear layer over YouTube's player: the TV remote's hidden pointer
     // rests mid-screen, and over the player it keeps YouTube's own pause
@@ -49,6 +50,20 @@
     center = YTV.el("div", "player-center");
     layer.appendChild(center);
     sizeFrame();
+  }
+
+  function keepInputInApp(player) {
+    var target = player || yt;
+    if (!target || !target.getIframe) return;
+    var embed = target.getIframe();
+    if (!embed) return;
+    // The transparent shield blocks hover, but doesn't prevent the iframe
+    // receiving keyboard/programmatic focus. Both can expose YouTube's UI.
+    embed.tabIndex = -1;
+    if (open && document.activeElement === embed) {
+      embed.blur();
+      layer.focus({ preventScroll: true });
+    }
   }
 
   function updateCenter() {
@@ -85,7 +100,7 @@
           width: "100%", height: "100%",
           playerVars: { autoplay: 1, controls: 0, rel: 0, playsinline: 1, iv_load_policy: 3, disablekb: 1, cc_load_policy: captions ? 1 : 0 },
           events: {
-            onReady: function () { resolve(); },
+            onReady: function (e) { keepInputInApp(e.target); resolve(); },
             onStateChange: onState,
             onApiChange: applyCaptions,
             onError: function (e) {
@@ -114,6 +129,7 @@
 
   function onState(e) {
     if (e.data === YT.PlayerState.PLAYING) {
+      keepInputInApp();
       // Speed can't change during ads, so apply it whenever playback starts.
       if (yt.getPlaybackRate() !== speed) yt.setPlaybackRate(speed);
       applyCaptions();
@@ -243,7 +259,7 @@
         if (at) YTV.toast("Resuming at " + YTV.clock(at) + " · press 0 to start over");
         clearInterval(tick);
         lastSave = Date.now();
-        tick = setInterval(function () { updateHud(); remember(); }, 500);
+        tick = setInterval(function () { keepInputInApp(); updateHud(); remember(); }, 500);
       }, function (e) { YTV.toast(e.message); close(true, true); });
     },
 

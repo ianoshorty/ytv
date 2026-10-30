@@ -105,9 +105,9 @@ h2 { font-size: 18px; margin: 18px 0 8px; color: var(--dim); font-weight: normal
 
 /* Player */
 #player-layer { display: none; position: fixed; inset: 0; background: #000; z-index: 30; }
-#player-frame { transform-origin: 0 0; }
-#player { width: 100%; height: 100%; display: block; }
-.player-shield { position: absolute; inset: 0; z-index: 1; }
+#player-frame { transform-origin: 0 0; pointer-events: none; }
+#player { width: 100%; height: 100%; display: block; pointer-events: none; }
+.player-shield { position: absolute; inset: 0; z-index: 1; pointer-events: auto; cursor: none; }
 .player-center { position: absolute; left: 50%; top: 50%; z-index: 3; transform: translate(-50%, -50%); width: 60px; height: 60px; border-radius: 50%; background: #0e1116; color: #fff; font-size: 24px; line-height: 60px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none; }
 .player-center.show { opacity: 1; }
 #hud { position: absolute; inset: 0; z-index: 2; opacity: 0; transition: opacity .25s; pointer-events: none; }
