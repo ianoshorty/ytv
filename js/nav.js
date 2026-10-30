@@ -24,6 +24,20 @@
     return r.right > box.left + 1 && r.left < box.right - 1;
   }
 
+  // scrollIntoView doesn't know about the pinned page header, so after it,
+  // scroll up a bit more if the focused tile (or its row's title) is behind it.
+  function clearHeader(el) {
+    var screen = YTV.nav.top();
+    var head = screen && screen.el.querySelector(".head");
+    if (!head || !screen.el.contains(el)) return;
+    if (head.contains(el)) { document.getElementById("content").scrollTop = 0; return; }
+    var row = el.closest(".row");
+    var title = row && row.previousElementSibling;
+    var target = title && title.classList.contains("row-title") ? title : el;
+    var gap = target.getBoundingClientRect().top - head.getBoundingClientRect().bottom;
+    if (gap < 0) document.getElementById("content").scrollTop += gap - 6;
+  }
+
   // The menu shrinks while you're along a row and comes back at its start.
   function updateRail(el) {
     var row = el.closest(".row");
@@ -52,6 +66,7 @@
       el.classList.add("focused");
       if (!el.closest("#rail")) lastContentFocus = el;
       el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      clearHeader(el);
       updateRail(el);
       if (el._focus) el._focus();
     },
