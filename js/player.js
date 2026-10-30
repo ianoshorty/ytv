@@ -22,7 +22,7 @@
     PLAY: 415, PAUSE: 19, PLAY_PAUSE: 179, FF: 417, RW: 412, STOP: 413 };
   var BACK = [8, 27, 461];
 
-  var layer, frame, hud, hudTitle, hudMeta, hudState, fill;
+  var layer, frame, hud, hudTitle, hudMeta, hudState, fill, center;
   var yt = null, ytReady = null;
   var list = [], index = 0, open = false;
   var hudTimer, tick;
@@ -38,7 +38,23 @@
     hudMeta = document.getElementById("hud-meta");
     hudState = document.getElementById("hud-state");
     fill = document.getElementById("hud-fill");
+    // Made here rather than in index.html, which the TV keeps cached.
+    // A clear layer over YouTube's player: the TV remote's hidden pointer
+    // rests mid-screen, and over the player it keeps YouTube's own pause
+    // button showing.
+    layer.insertBefore(YTV.el("div", "player-shield"), hud);
+    // YTV's own symbol: ▶ while paused (stays), ❚❚ while playing (fades
+    // with the controls).
+    center = YTV.el("div", "player-center");
+    layer.appendChild(center);
     sizeFrame();
+  }
+
+  function updateCenter() {
+    if (!yt || !yt.getPlayerState) return;
+    var paused = yt.getPlayerState() === YT.PlayerState.PAUSED;
+    center.textContent = paused ? "▶" : "❚❚";
+    center.classList.toggle("show", paused || hud.classList.contains("show"));
   }
 
   function sizeFrame() {
@@ -133,7 +149,14 @@
   function showHud(stay) {
     hud.classList.add("show");
     clearTimeout(hudTimer);
-    if (!stay) hudTimer = setTimeout(function () { hud.classList.remove("show"); }, 3500);
+    if (!stay) hudTimer = setTimeout(hideHud, 3500);
+    updateCenter();
+  }
+
+  function hideHud() {
+    clearTimeout(hudTimer);
+    hud.classList.remove("show");
+    updateCenter();
   }
 
   function setSpeed(delta) {
@@ -215,8 +238,7 @@
       if (!open) return false;
       // Red toggles the info bar, so it's handled before any key shows it.
       if (code === KEY.RED) {
-        clearTimeout(hudTimer);
-        if (hud.classList.contains("show")) hud.classList.remove("show"); else showHud(true);
+        if (hud.classList.contains("show")) hideHud(); else showHud(true);
         return true;
       }
       showHud();

@@ -14,7 +14,7 @@
   }
 
   var YTV = window.YTV = {};
-  YTV.VERSION = "0.7.0";
+  YTV.VERSION = "0.7.1";
 
   YTV.el = function (tag, cls, text) {
     var e = document.createElement(tag);
