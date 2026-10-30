@@ -4,15 +4,15 @@
   "use strict";
 
   var YTV = window.YTV;
-  var MAX = 60;
+  var MAX = 12;
   var MIN_RESUME = 15; // seconds; earlier than this just starts again
   var DONE = 0.95; // watched this fraction or more counts as finished
 
-  function local() { return YTV.store.get("history", []); }
+  function local() { return YTV.store.get("history", []).slice(0, MAX); }
   function remote(id) { return YTV.sync && YTV.sync.configured() ? YTV.sync.get(id) : null; }
   function effective(h, r) {
     if (!r) return h;
-    if (h && (YTV.sync.hasPending(h.id) || h.at > YTV.sync.remoteAt() || r.fraction === null)) return h;
+    if (h && (h.manualDone || YTV.sync.hasPending(h.id) || h.at > YTV.sync.remoteAt() || r.fraction === null)) return h;
     var duration = r.seconds || h && h.seconds;
     return Object.assign({}, h || {}, r, { seconds: duration || null,
       pos: r.fraction !== null && duration ? Math.round(r.fraction * duration) : h && h.pos || 0,
@@ -33,6 +33,14 @@
 
   YTV.history = {
     all: all,
+    recorded: local,
+    complete: function (video, duration) {
+      var list = local(), h = find(list, video.id);
+      if (!h) { h = Object.assign({}, video); list.unshift(h); }
+      h.seconds = duration || h.seconds || video.seconds || null;
+      h.pos = h.seconds || h.pos || 0; h.done = true; h.manualDone = true; h.at = Date.now();
+      save(list);
+    },
 
     get: function (id) { return effective(find(local(), id), remote(id)); },
 
@@ -55,6 +63,7 @@
       var h = find(list, id);
       if (!h) return;
       if (duration) h.seconds = Math.round(duration);
+      delete h.manualDone;
       h.pos = Math.round(pos);
       h.done = !!(h.seconds && pos / h.seconds >= DONE);
       h.at = Date.now();

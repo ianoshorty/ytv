@@ -48,7 +48,7 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.8: optional TV-native history sync, alongside subscriptions, resume, send from your phone, Home rows and category rows.**
+**0.9: video history actions and manual progress sync, alongside TV-native history sync, subscriptions, resume and Home rows.**
 
 - **Home:** rows that scroll sideways: Sent from your phone, Continue watching
   on this TV, Latest from your subscriptions (no Shorts, cached 30 minutes),
@@ -58,8 +58,19 @@ The installer isn't in this repo. It's built on what these projects documented:
   they're about: specific rows from tags and topics several videos share (e.g. a
   game), then YouTube categories (Gaming, News & Politics, Sport…). Built from
   data YTV already fetches, so no extra quota
-- **Recent:** everything played in YTV on this TV, with progress bars; videos
-  resume where you stopped
+- **Recent:** the last 12 videos played in YTV on this TV, with progress bars.
+  **Sync progress to YouTube** compares the raw TV playback record with a fresh
+  history read and sends only progress that is further ahead. Videos with
+  unknown cloud progress or missing local duration are skipped; progress
+  already further ahead on YouTube is preserved. At most 12 videos are checked,
+  with one player lookup and two reporting requests per changed video.
+- **Video actions:** hold OK for about a second on any video card to mark it
+  completely watched, remove it from YouTube history (with confirmation), or
+  remove it from Recent on this TV only. Cloud actions require enabled history
+  sync. Removal uses YouTube's own per-video history DELETE control; if it is
+  unavailable in the recent feed, nothing is deleted. Without enabled sync,
+  marking watched applies locally. Unconfirmed manual writes are never retried
+  automatically. These actions do not change the player session
 - **YouTube history sync (optional):** a separate session connected once to the
   TV lets YTV import recent YouTube history and report new playback directly.
   No phone or computer companion runs while watching. Enable or pause it in
@@ -80,7 +91,7 @@ The installer isn't in this repo. It's built on what these projects documented:
 - **Account:** sign in with a code at google.com/device, sign out (revokes the
   token), hide Shorts, today's API usage
 
-Remote, browsing: arrows move · OK select · Back goes back (twice on Home
+Remote, browsing: arrows move · OK select · hold OK on a video for actions · Back goes back (twice on Home
 exits).
 Remote, playing: OK play/pause · ←/→ 10 s · rewind/fast-forward 30 s ·
 ↑/↓ speed · 0–9 jump to 0–90% · Red info · Green captions · Yellow quality · Blue play what your phone sent ·

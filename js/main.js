@@ -37,6 +37,7 @@
 
   window.addEventListener("keydown", function (e) {
     var code = e.keyCode;
+    if (YTV.context.down(code) || YTV.context.key(code)) { e.preventDefault(); return; }
     if (YTV.player.key(code)) { e.preventDefault(); return; }
     var screen = YTV.nav.top();
     if (screen && screen.el._key && screen.el._key(code)) { e.preventDefault(); return; }
@@ -50,6 +51,9 @@
     else return;
     e.preventDefault();
   });
+
+  window.addEventListener('keyup', function (e) { if (YTV.context.up(e.keyCode)) e.preventDefault(); });
+  window.addEventListener('blur', YTV.context.cancel);
 
   YTV.nav.go("home", {}, true);
   YTV.send.start();

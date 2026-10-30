@@ -84,13 +84,31 @@
 
   // --- Recent: everything played on this TV --------------------------------
   S.recent = function (el) {
-    var h = header(el, "Recent", "Played in YTV on this TV, newest first. YouTube history is in the separate menu section.");
+    var h = header(el, "Recent", "Last 12 videos played on this TV. Hold OK on a video for watch-history actions.");
     var list = YTV.history.all();
+    var busy = false;
+    var syncButton = YTV.ui.button('Sync progress to YouTube', function () {
+      if (busy) return;
+      if (!YTV.sync.enabled()) { YTV.toast('Enable history sync in Account first.'); return; }
+      busy = true; syncButton.textContent = 'Syncing…';
+      YTV.sync.catchUp().then(function (result) {
+        var message = result.updated + ' updated · ' + result.skipped + ' skipped';
+        if (result.awaiting) message += ' · ' + result.awaiting + ' already sent';
+        if (result.failed) message += ' · stopped: ' + result.error;
+        YTV.toast(message);
+        outcome.textContent = message;
+        if (YTV.nav.top().el === el) list.forEach(function (v) { YTV.ui.refreshProgress(v.id); });
+      }, function (e) { outcome.textContent = e.message; YTV.toast(e.message); }).finally(function () {
+        busy = false; syncButton.textContent = 'Sync progress to YouTube';
+      });
+    }, 'small');
+    h.appendChild(syncButton);
+    var outcome = YTV.ui.message(el, 'Sends TV progress only when it is ahead of YouTube. Entries with unknown cloud progress are skipped.', 'hint');
     if (!list.length) {
       YTV.ui.message(el, "Nothing yet. Videos you play in YTV will appear here, with where you stopped.");
       return;
     }
-    h.appendChild(YTV.ui.button("Clear", function () {
+    h.appendChild(YTV.ui.button("Clear TV list", function () {
       YTV.history.clear();
       YTV.toast("Recent cleared");
       YTV.nav.go("recent", {}, true);
@@ -250,6 +268,7 @@
     ["Browsing", [
       ["Arrows", "Move around"],
       ["OK", "Open or play"],
+      ["Hold OK on a video", "Mark watched or remove from history"],
       ["Back", "Go back a screen"],
       ["Back twice on Home", "Exit YTV"],
       ["Blue  or  ← at the start", "Open the menu (it shrinks as you scroll along a row)"],

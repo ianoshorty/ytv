@@ -5,7 +5,7 @@
   var YTV = window.YTV, Core = window.YTVSyncCore;
   var jobs = YTV.store.get('syncOutbox', []), current = null, flushing = null, pulling = null;
   var metadata = {}, timer, pullAt = 0;
-  var healthAt = 0, renewing = null;
+  var healthAt = 0, renewing = null, manual = null;
   var LOGIN_FIELDS = 'responseContext/mainAppWebResponseContext/loggedOut';
   var connectionId = (YTV.store.get('syncSession', {}) || {}).importedAt || 0;
   jobs.forEach(function (j) { if (j.connectionId == null) j.connectionId = connectionId; });
@@ -74,7 +74,8 @@
     })().finally(function () { renewing = null; });
     return renewing;
   }
-  function pull() {
+  function pull(internal) {
+    if (manual && !internal) return manual.then(function () { return cache().items; });
     if (pulling) return pulling;
     pulling = (async function () {
       status = 'Reading YouTube history…';
@@ -118,9 +119,10 @@
     });
     return out;
   }
-  function flush(manual) {
+  function flush(retry) {
+    if (manual) return Promise.resolve();
     if (!enabled()) return Promise.resolve();
-    if (manual) jobs.forEach(function (job) { job.uncertain = false; });
+    if (retry) jobs.forEach(function (job) { job.uncertain = false; });
     if (flushing) return flushing;
     flushing = (async function () {
       await keepSession();
@@ -160,6 +162,125 @@
       .finally(function () { flushing = null; });
     return flushing;
   }
+  function cpn() {
+    var bytes = new Uint8Array(16);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes);
+    else for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    return Array.from(bytes).map(function (v) { return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'[v & 63]; }).join('');
+  }
+  function exclusive(action) {
+    if (manual) return Promise.reject(new Error('A history action is already running.'));
+    manual = (async function () {
+      // Reserve the writer before waiting for an existing automatic request.
+      if (flushing) await flushing;
+      if (pulling) await pulling;
+      if (!enabled()) throw new Error('Enable history sync in Account first.');
+      if (current || YTV.player && YTV.player.isOpen()) throw new Error('Close playback before editing history.');
+      var id = connectionId;
+      function check() {
+        if (!enabled() || connectionId !== id) throw new Error('History sync paused or the connection changed.');
+        if (current || YTV.player && YTV.player.isOpen()) throw new Error('Close playback before editing history.');
+      }
+      await keepSession(); check();
+      return action(check);
+    })().finally(function () { manual = null; });
+    return manual;
+  }
+  function forgetQueued(id) {
+    jobs = jobs.filter(function (j) { if (j.id !== id) return true; delete metadata[j.cpn]; return false; });
+    persist();
+  }
+  function remembered(id, position, duration) {
+    var r = (YTV.store.get('syncManualReports', {}) || {})[id];
+    return r && r.connectionId === connectionId && Date.now() - r.at < 10 * 60000 && r.duration === duration && r.pos >= position;
+  }
+  async function report(video, complete, check) {
+    if (!Core.validId(video.id) || video.live) throw new Error('This video cannot be marked watched.');
+    check();
+    var data = await api('player', { videoId: video.id }), urls = Core.tracking(data, video.id);
+    var duration = Number(data.videoDetails.lengthSeconds);
+    if (!Number.isFinite(duration) || duration <= 0) throw new Error('YouTube did not provide a video duration.');
+    var position = complete || video.done ? duration : Math.min(duration, Number(video.pos) || 0);
+    if (!Number.isFinite(position) || position <= 0) throw new Error('No playback progress saved for this video.');
+    var token = cpn(), range = { start: 0, end: position };
+    check();
+    // Explicit user correction: report the requested position as watched.
+    // Never automatically retry an ambiguous response.
+    try {
+      await sendStats(Core.statsArgs(session(), urls[0], video.id, token, range, position, false, true));
+      check();
+      await sendStats(Core.statsArgs(session(), urls[1], video.id, token, range, position, position / duration >= 0.95, false));
+    } catch (_) {
+      jobs.forEach(function (job) { if (job.id === video.id) job.uncertain = true; }); persist();
+      throw new Error('Update not confirmed; some data may have reached YouTube. No automatic retry was made.');
+    }
+    check();
+    forgetQueued(video.id);
+    var receipts = YTV.store.get('syncManualReports', {});
+    Object.keys(receipts).forEach(function (id) { if (Date.now() - receipts[id].at >= 10 * 60000) delete receipts[id]; });
+    receipts[video.id] = { pos: position, duration: duration, at: Date.now(), connectionId: connectionId };
+    YTV.store.set('syncManualReports', receipts);
+    var saved = cache(), index = saved.items.findIndex(function (v) { return v.id === video.id; });
+    var updated = Object.assign({}, video, { fromYouTube: true, fraction: position / duration, seconds: duration });
+    if (index < 0) saved.items.unshift(updated); else saved.items[index] = updated;
+    YTV.store.set('syncRemote', saved);
+    return duration;
+  }
+  function catchUp() {
+    // Snapshot the raw TV record, not the merged display of cloud progress.
+    var videos = YTV.history.recorded().slice(0, 12);
+    return exclusive(async function (check) {
+      var cloud = await pull(true); check();
+      var result = { updated: 0, skipped: 0, awaiting: 0, failed: 0, remaining: 0 };
+      for (var i = 0; i < videos.length; i++) {
+        var video = videos[i], duration = Number(video.seconds), position = video.done ? duration : Number(video.pos);
+        if (video.live || !Core.validId(video.id) || !(duration > 0) || !(position > 0)) { result.skipped++; continue; }
+        var remote = cloud.find(function (v) { return v.id === video.id; });
+        var fraction = Math.min(1, position / duration);
+        if (remote && typeof remote.fraction === 'number' && (remote.fraction >= fraction || remote.fraction >= 0.95 && video.done)) { result.skipped++; continue; }
+        // Unknown cloud progress could already be ahead. Do not overwrite it.
+        if (remote && remote.fraction === null) { result.skipped++; continue; }
+        if (remembered(video.id, position, duration)) { result.awaiting++; continue; }
+        try { await report(video, false, check); result.updated++; }
+        catch (e) { result.failed++; result.remaining = videos.length - i - 1; result.error = e.message; break; }
+      }
+      status = result.updated + ' progress updates sent to YouTube';
+      return result;
+    });
+  }
+  function markComplete(video) {
+    return exclusive(async function (check) {
+      var duration = await report(video, true, check);
+      YTV.history.complete(video, duration);
+      if (YTV.ui) YTV.ui.refreshProgress(video.id);
+      status = 'Marked watched on YouTube';
+    });
+  }
+  function removeVideo(id) {
+    return exclusive(async function (check) {
+      if (!Core.validId(id)) throw new Error('Invalid video.');
+      var data = await api('browse', { browseId: 'FEhistory' }, Core.REMOVE_FIELDS); check(); requireLogin(data);
+      var command = Core.removal(data, id);
+      if (!command) throw new Error('YouTube did not provide a remove control for this video. You can still remove it from Recent on this TV.');
+      var response;
+      try { response = await api('feedback', command); }
+      catch (_) {
+        jobs.forEach(function (job) { if (job.id === id) job.uncertain = true; }); persist();
+        throw new Error('Removal not confirmed; it may have reached YouTube. Refresh history before trying again.');
+      }
+      check();
+      if (!response.feedbackResponses || !response.feedbackResponses[0] || response.feedbackResponses[0].isProcessed !== true) {
+        jobs.forEach(function (job) { if (job.id === id) job.uncertain = true; }); persist();
+        throw new Error('YouTube did not confirm removal. Refresh history before trying again.');
+      }
+      forgetQueued(id);
+      var saved = cache(); saved.items = saved.items.filter(function (v) { return v.id !== id; });
+      YTV.store.set('syncRemote', saved);
+      var receipts = YTV.store.get('syncManualReports', {}); delete receipts[id]; YTV.store.set('syncManualReports', receipts);
+      YTV.history.remove(id);
+      status = 'Removed from YouTube history';
+    });
+  }
   function qualify(job) {
     if (job.queued || job.realSeconds < 3 && !job.final) return;
     if (!job.ranges.length) return;
@@ -196,6 +317,10 @@
     flush(false);
   }
   YTV.sync = {
+    catchUp: catchUp,
+    markComplete: markComplete,
+    removeVideo: removeVideo,
+    busy: function () { return !!manual; },
     enabled: enabled,
     configured: function () { try { session(); return true; } catch (_) { return false; } },
     status: function () { return jobs.some(function (j) { return j.uncertain; }) ? 'An update was not confirmed. Review pending updates below.' : status; },
@@ -210,7 +335,7 @@
     disable: function () { YTV.store.set('syncEnabled', false); current = null; status = 'History sync paused'; },
     disconnect: function () {
       YTV.store.set('syncEnabled', false);
-      ['syncSession', 'syncRemote', 'syncOutbox'].forEach(YTV.store.del);
+      ['syncSession', 'syncRemote', 'syncOutbox', 'syncManualReports'].forEach(YTV.store.del);
       jobs = []; current = null; metadata = {}; healthAt = 0; status = 'Not connected';
     },
     retry: function () { return flush(true); },

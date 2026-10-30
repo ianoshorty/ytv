@@ -245,7 +245,10 @@
       setProgress(card);
       card.appendChild(YTV.el("div", "title", v.title));
       card.appendChild(YTV.el("div", "meta", [v.channel, v.published ? YTV.ago(v.published) : ""].filter(Boolean).join(" · ")));
+      card._video = v;
       card._select = onSelect;
+      card.oncontextmenu = function (e) { e.preventDefault(); YTV.focus.set(card); YTV.context.open(card); };
+      card.onclick = function () { YTV.focus.set(card); onSelect(); };
       return card;
     },
 

@@ -120,3 +120,13 @@ h2 { font-size: 18px; margin: 18px 0 8px; color: var(--dim); font-weight: normal
 #hud-help { margin-top: 4px; font-size: 13px; color: #aab4be; }
 /* A history entry can be partial; this label does not imply completion. */
 .badge.history-badge{left:8px;right:auto;top:8px;bottom:auto;font-size:13px}
+
+/* The action menu sits inside #app so it follows the TV design scale. */
+.video-actions { position: absolute; inset: 0; z-index: 100; background: #000b; display: flex; align-items: center; justify-content: center; }
+.video-actions-box { width: 650px; max-height: 650px; overflow: auto; padding: 28px; border: 2px solid var(--accent); border-radius: 14px; background: var(--panel); }
+.video-actions-box h2 { margin: 0 0 22px; color: var(--text); font-size: 24px; overflow-wrap: anywhere; }
+.video-actions-box .btn { display: block; margin: 10px 0; font-size: 19px; }
+.video-actions-note { margin-top: 20px; color: var(--dim); font-size: 17px; overflow-wrap: anywhere; }
+.screen-recent .head { flex-wrap: wrap; }
+.screen-recent .head .sub { flex-basis: 420px; }
+.video-actions-box .btn.focused { box-shadow: 0 0 0 3px var(--accent); background: #20382f; }

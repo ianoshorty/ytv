@@ -11,6 +11,11 @@
     'continuationItemRenderer/continuationEndpoint/continuationCommand/token'
   ];
   var HISTORY_FIELDS = ['responseContext/mainAppWebResponseContext/loggedOut'].concat(shapes.map(function (s) { return PREFIX + s; })).join(',');
+  // Requested only for an explicit removal; normal history reads stay unchanged.
+  var DELETE_ENDPOINT = 'feedbackEndpoint(feedbackToken,shouldMerge,isFeedbackTokenUnencrypted)';
+  var REMOVE_FIELDS = 'responseContext/mainAppWebResponseContext/loggedOut,' + PREFIX +
+    'videoRenderer(videoId,menu/menuRenderer/items/menuServiceItemRenderer(icon/iconType,serviceEndpoint/' + DELETE_ENDPOINT + ')),' + PREFIX +
+    'lockupViewModel(contentId,contentType,metadata/lockupMetadataViewModel/menuButton/buttonViewModel/onTap/innertubeCommand/showSheetCommand/panelLoadingStrategy/inlineContent/sheetViewModel/content/listViewModel/listItems/listItemViewModel(leadingImage/sources/clientResource/imageName,rendererContext/commandContext/onTap/innertubeCommand/' + DELETE_ENDPOINT + '))';
   var PLAYER_FIELDS = 'playabilityStatus/status,videoDetails(videoId,title,lengthSeconds),playbackTracking(videostatsPlaybackUrl/baseUrl,videostatsWatchtimeUrl/baseUrl)';
   var AGENT = 'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36';
   function validId(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{11}$/.test(id); }
@@ -107,8 +112,9 @@
     return Object.keys(map).map(function (name) { return name + '=' + map[name]; }).join('; ');
   }
   async function apiArgs(session, endpoint, data) {
-    if (endpoint !== 'browse' && endpoint !== 'player') throw new Error('Unsupported sync endpoint');
-    var fields = endpoint === 'browse' ? HISTORY_FIELDS : PLAYER_FIELDS;
+    if (['browse', 'player', 'feedback'].indexOf(endpoint) < 0) throw new Error('Unsupported sync endpoint');
+    var fields = endpoint === 'browse' ? HISTORY_FIELDS : endpoint === 'feedback' ? 'feedbackResponses/isProcessed' : PLAYER_FIELDS;
+    if (endpoint === 'feedback' && (!data || !Array.isArray(data.feedbackTokens) || data.feedbackTokens.length !== 1 || typeof data.feedbackTokens[0] !== 'string' || !data.feedbackTokens[0] || data.feedbackTokens[0].length > 16000)) throw new Error('Invalid removal token');
     if (endpoint === 'player' && !validId(data.videoId)) throw new Error('Invalid video ID');
     var context = { client: { clientName: 'WEB', clientVersion: VERSION, userAgent: AGENT, hl: 'en', gl: 'GB' } };
     return {
@@ -159,6 +165,42 @@
     }
     return out;
   }
+  function removal(data, id) {
+    // Never take a generic recommendation/Not Interested token. Only the
+    // DELETE control belonging to this video in the history feed is allowed.
+    if (!validId(id)) return null;
+    var stack = [data && data.contents], count = 0;
+    while (stack.length && count++ < 50000) {
+      var item = stack.pop();
+      if (!item || typeof item !== 'object') continue;
+      var v = item.videoRenderer, l = item.lockupViewModel, candidates = [];
+      if (v && v.videoId === id) {
+        candidates = (v.menu && v.menu.menuRenderer && v.menu.menuRenderer.items || []).map(function (i) {
+          var m = i.menuServiceItemRenderer;
+          return m && m.icon && m.icon.iconType === 'DELETE' && m.serviceEndpoint && m.serviceEndpoint.feedbackEndpoint;
+        });
+      }
+      if (l && l.contentId === id && l.contentType === 'LOCKUP_CONTENT_TYPE_VIDEO') {
+        var menu = l.metadata && l.metadata.lockupMetadataViewModel && l.metadata.lockupMetadataViewModel.menuButton;
+        var command = menu && menu.buttonViewModel && menu.buttonViewModel.onTap && menu.buttonViewModel.onTap.innertubeCommand;
+        var strategy = command && command.showSheetCommand && command.showSheetCommand.panelLoadingStrategy;
+        var sheet = strategy && strategy.inlineContent && strategy.inlineContent.sheetViewModel;
+        var list = sheet && sheet.content && sheet.content.listViewModel;
+        candidates = (list && list.listItems || []).map(function (i) {
+          var m = i.listItemViewModel;
+          if (!m || !(m.leadingImage && m.leadingImage.sources || []).some(function (image) { return image.clientResource && image.clientResource.imageName === 'DELETE'; })) return null;
+          var tap = m.rendererContext && m.rendererContext.commandContext && m.rendererContext.commandContext.onTap;
+          return tap && tap.innertubeCommand && tap.innertubeCommand.feedbackEndpoint;
+        });
+      }
+      for (var c of candidates) if (c && typeof c.feedbackToken === 'string' && c.feedbackToken.length && c.feedbackToken.length <= 16000) {
+        return { feedbackTokens: [c.feedbackToken], shouldMerge: !!c.shouldMerge, isFeedbackTokenUnencrypted: !!c.isFeedbackTokenUnencrypted };
+      }
+      var children = Array.isArray(item) ? item : Object.keys(item).map(function (k) { return item[k]; });
+      for (var j = children.length - 1; j >= 0; j--) if (children[j] && typeof children[j] === 'object') stack.push(children[j]);
+    }
+    return null;
+  }
   function tracking(data, id) {
     if (!validId(id) || !data || !data.videoDetails || data.videoDetails.videoId !== id || data.playabilityStatus.status !== 'OK') throw new Error('Video cannot be synced');
     return ['videostatsPlaybackUrl', 'videostatsWatchtimeUrl'].map(function (name, i) {
@@ -178,7 +220,7 @@
     Object.keys(p).forEach(function (key) { u.searchParams.set(key, p[key]); });
     return { url: u.href, method: 'get', timeout: 15, withCredentials: false, certLapsedFunctional: false, custom_headers: { Cookie: cookieHeader(session), 'User-Agent': AGENT } };
   }
-  var core = { validateSession: validateSession, mergeCookies: mergeCookies, validId: validId, apiArgs: apiArgs, parseHistory: parseHistory, tracking: tracking, statsArgs: statsArgs, sha1: sha1, HISTORY_FIELDS: HISTORY_FIELDS };
+  var core = { removal: removal, REMOVE_FIELDS: REMOVE_FIELDS, validateSession: validateSession, mergeCookies: mergeCookies, validId: validId, apiArgs: apiArgs, parseHistory: parseHistory, tracking: tracking, statsArgs: statsArgs, sha1: sha1, HISTORY_FIELDS: HISTORY_FIELDS };
   if (typeof module === 'object' && module.exports) module.exports = core;
   else root.YTVSyncCore = core;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
