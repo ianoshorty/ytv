@@ -1,4 +1,5 @@
-// The app's screens: Home, Subscriptions, Channel, Search and Account.
+// The app's screens: Home, Recent, Subscriptions, Channel, Search, Controls
+// and Account.
 (function () {
   "use strict";
 
@@ -27,9 +28,25 @@
     return true;
   }
 
-  // --- Home: newest uploads from your subscriptions ------------------------
+  function rowTitle(el, title, sub) {
+    var t = YTV.el("div", "row-title");
+    t.appendChild(YTV.el("h2", null, title));
+    var s = YTV.el("span", "sub", sub || "");
+    t.appendChild(s);
+    el.appendChild(t);
+    return s;
+  }
+
+  // --- Home: continue watching, then newest uploads from subscriptions -----
   S.home = function (el, params) {
-    header(el, "Home");
+    var h = header(el, "Home");
+
+    var unfinished = YTV.history.unfinished();
+    if (unfinished.length) {
+      rowTitle(el, "Continue watching on this TV");
+      YTV.ui.videoGrid(el, function () { return Promise.resolve({ videos: unfinished.slice(0, 4) }); }, 4);
+    }
+
     if (needsSetup(el)) return;
     if (!YTV.auth.signedIn()) {
       YTV.ui.message(el, "Sign in to see the latest videos from your subscriptions.");
@@ -39,19 +56,33 @@
       el.appendChild(row);
       return;
     }
-    var h = el.querySelector(".head");
-    var refresh = YTV.ui.button("Refresh", function () { YTV.nav.go("home", { force: true }, true); }, "small");
-    h.appendChild(refresh);
+    h.appendChild(YTV.el("div", "sub"));
+    h.appendChild(YTV.ui.button("Refresh", function () { YTV.nav.go("home", { force: true }, true); }, "small"));
     var cached = YTV.store.get("feed", null);
-    var sub = YTV.el("div", "sub", "Latest from your subscriptions");
-    h.insertBefore(sub, refresh);
+    var sub = rowTitle(el, "Latest from your subscriptions");
     YTV.ui.videoGrid(el, function () {
       return YTV.api.feed(params.force).then(function (videos) {
         var f = YTV.store.get("feed", cached);
-        if (f) sub.textContent = "Latest from your subscriptions · updated " + YTV.ago(f.at);
+        if (f) sub.textContent = "updated " + YTV.ago(f.at);
         return { videos: videos };
       });
     }, 4);
+  };
+
+  // --- Recent: everything played on this TV --------------------------------
+  S.recent = function (el) {
+    var h = header(el, "Recent", "Played in YTV on this TV, newest first. YouTube's own history isn't available to apps.");
+    var list = YTV.history.all();
+    if (!list.length) {
+      YTV.ui.message(el, "Nothing yet. Videos you play in YTV will appear here, with where you stopped.");
+      return;
+    }
+    h.appendChild(YTV.ui.button("Clear", function () {
+      YTV.history.clear();
+      YTV.toast("Recent cleared");
+      YTV.nav.go("recent", {}, true);
+    }, "small"));
+    YTV.ui.videoGrid(el, function () { return Promise.resolve({ videos: list }); }, 4);
   };
 
   // --- Subscriptions: your channels ----------------------------------------
@@ -183,7 +214,7 @@
       ["← / →", "Back or forward 10 seconds"],
       ["Rewind / Fast-forward", "Back or forward 30 seconds"],
       ["↑ / ↓", "Faster or slower (0.25x–2x)"],
-      ["0–9", "Jump to 0%–90% of the video"],
+      ["0–9", "Jump to 0%–90% (0 starts over)"],
       ["Red", "Show or hide the info bar"],
       ["Green", "Captions on or off"],
       ["Yellow", "Change quality (1080p → 1440p → 4K → 480p → 720p)"],
@@ -192,7 +223,7 @@
   ];
 
   S.controls = function (el) {
-    header(el, "Controls", "Speed, captions and quality are remembered between videos");
+    header(el, "Controls", "Speed, captions and quality are remembered. Videos resume where you stopped.");
     var cols = YTV.el("div", "controls");
     CONTROLS.forEach(function (group) {
       var col = YTV.el("div", "controls-col");

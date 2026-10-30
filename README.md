@@ -48,9 +48,12 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.3: Phase 1 plus sign-in and subscriptions.**
+**0.4: Phase 1, sign-in, subscriptions, and resume on this TV.**
 
-- **Home:** newest uploads across your subscriptions (cached for 30 minutes)
+- **Home:** "Continue watching on this TV", then the newest uploads across your
+  subscriptions (cached for 30 minutes)
+- **Recent:** everything played in YTV on this TV, with progress bars; videos
+  resume where you stopped (YouTube's own history isn't available to apps)
 - **Subscriptions:** your channels A–Z, each opening its uploads
 - **Search:** on-screen keyboard (number keys type digits), recent searches
 - **Player:** full screen, speed 0.25–2x, captions toggle and a quality

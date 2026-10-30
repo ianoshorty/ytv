@@ -73,7 +73,10 @@
             onError: function (e) {
               var msg = e.data === 101 || e.data === 150 ? "This video can't be played outside YouTube." : "Player error " + e.data;
               YTV.toast(msg);
-              if (open) close();
+              if (open) {
+                YTV.history.remove(video().id); // never played, so not "recent"
+                close(true);
+              }
             }
           }
         });
@@ -97,8 +100,21 @@
       if (yt.getPlaybackRate() !== speed) yt.setPlaybackRate(speed);
       applyCaptions();
     }
-    if (e.data === YT.PlayerState.ENDED && open) close();
+    if (e.data === YT.PlayerState.ENDED && open) {
+      var d = yt.getDuration();
+      YTV.history.progress(video().id, d, d);
+      close(true);
+    }
     showHud();
+  }
+
+  // Saves where you are every few seconds while playing.
+  var lastSave = 0;
+  function remember() {
+    if (!yt || !yt.getCurrentTime || yt.getPlayerState() !== YT.PlayerState.PLAYING) return;
+    if (Date.now() - lastSave < 5000) return;
+    lastSave = Date.now();
+    YTV.history.progress(video().id, yt.getCurrentTime(), yt.getDuration());
   }
 
   function video() { return list[index]; }
@@ -151,12 +167,17 @@
     if (yt.getPlayerState() === YT.PlayerState.PLAYING) { yt.pauseVideo(); showHud(true); } else yt.playVideo();
   }
 
-  function close() {
+  // ended: the video finished, so its position was already saved.
+  function close(ended) {
     open = false;
     clearInterval(tick);
+    if (yt && yt.getCurrentTime && ended !== true && yt.getCurrentTime() > 0) {
+      YTV.history.progress(video().id, yt.getCurrentTime(), yt.getDuration());
+    }
     if (yt && yt.stopVideo) yt.stopVideo();
     layer.style.display = "none";
     document.body.classList.remove("playing");
+    YTV.ui.refreshProgress(video().id);
   }
 
   YTV.player = {
@@ -173,12 +194,16 @@
       document.body.classList.add("playing");
       open = true;
       showHud();
+      var at = YTV.history.resumeAt(v.id);
+      YTV.history.start(v);
       loadApi().then(function () {
         if (!open) return;
-        yt.loadVideoById(v.id);
+        yt.loadVideoById({ videoId: v.id, startSeconds: at });
+        if (at) YTV.toast("Resuming at " + YTV.clock(at) + " · press 0 to start over");
         clearInterval(tick);
-        tick = setInterval(updateHud, 500);
-      }, function (e) { YTV.toast(e.message); close(); });
+        lastSave = Date.now();
+        tick = setInterval(function () { updateHud(); remember(); }, 500);
+      }, function (e) { YTV.toast(e.message); close(true); });
     },
 
     // Returns true if the key was handled.

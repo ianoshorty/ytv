@@ -11,7 +11,7 @@
   window.addEventListener("resize", fit);
 
   var rail = document.getElementById("rail");
-  [["home", "Home"], ["subs", "Subscriptions"], ["search", "Search"], ["controls", "Controls"], ["account", "Account"]].forEach(function (s) {
+  [["home", "Home"], ["recent", "Recent"], ["subs", "Subscriptions"], ["search", "Search"], ["controls", "Controls"], ["account", "Account"]].forEach(function (s) {
     var item = YTV.el("div", "rail-item f", s[1]);
     item.dataset.screen = s[0];
     item._select = function () { YTV.nav.go(s[0], {}, true); };

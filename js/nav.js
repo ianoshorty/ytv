@@ -125,7 +125,20 @@
   };
 
   // --- building blocks -----------------------------------------------------
+  // The bar under a thumbnail showing how much you've watched.
+  function setProgress(card) {
+    var f = YTV.history.fraction(card.dataset.id);
+    var bar = card.querySelector(".progress");
+    bar.style.display = f === null || f === 0 ? "none" : "";
+    bar.firstChild.style.width = (f || 0) * 100 + "%";
+  }
+
   YTV.ui = {
+    // Updates every card for this video after it's been played.
+    refreshProgress: function (id) {
+      Array.prototype.forEach.call(document.querySelectorAll('.card[data-id="' + id + '"]'), setProgress);
+    },
+
     button: function (label, onSelect, cls) {
       var b = YTV.el("div", "btn f" + (cls ? " " + cls : ""), label);
       b._select = onSelect;
@@ -148,7 +161,12 @@
       }
       if (v.live) thumb.appendChild(YTV.el("span", "badge live", "LIVE"));
       else if (v.seconds) thumb.appendChild(YTV.el("span", "badge", YTV.clock(v.seconds)));
+      var bar = YTV.el("div", "progress");
+      bar.appendChild(YTV.el("div", "progress-fill"));
+      thumb.appendChild(bar);
       card.appendChild(thumb);
+      card.dataset.id = v.id;
+      setProgress(card);
       card.appendChild(YTV.el("div", "title", v.title));
       card.appendChild(YTV.el("div", "meta", [v.channel, v.published ? YTV.ago(v.published) : ""].filter(Boolean).join(" · ")));
       card._select = onSelect;
