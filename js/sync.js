@@ -10,6 +10,7 @@
   function session() { return Core.validateSession(YTV.store.get('syncSession', null)); }
   function persist() { YTV.store.set('syncOutbox', jobs.slice(-40)); }
   function cache() { return YTV.store.get('syncRemote', { items: [], at: 0 }); }
+  function failure(code) { var error = new Error(code); error.syncCode = code; return error; }
   async function native(args) {
     var controller = new AbortController(), timeout = setTimeout(function () { controller.abort(); }, 25000);
     try {
@@ -17,14 +18,19 @@
         method: 'POST', credentials: 'omit', redirect: 'error', signal: controller.signal,
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api: 'fetchResponse', args: args })
       });
-      if (!r.ok) throw new Error('TV connection unavailable');
-      return await r.json();
+      if (!r.ok) throw failure('TV_HTTP_' + r.status);
+      try { return await r.json(); } catch (_) { throw failure('TV_RESPONSE_FORMAT'); }
+    } catch (e) {
+      if (e.syncCode) throw e;
+      throw failure(e.name === 'AbortError' ? 'TV_TIMEOUT' : 'TV_CONNECTION');
     } finally { clearTimeout(timeout); }
   }
   async function api(endpoint, body) {
-    var response = await native(await Core.apiArgs(session(), endpoint, body));
-    if (response.ret !== true) throw new Error('YouTube sync request failed');
-    return typeof response.msg === 'string' ? JSON.parse(response.msg) : response.msg;
+    var args;
+    try { args = await Core.apiArgs(session(), endpoint, body); } catch (_) { throw failure('SIGN_REQUEST'); }
+    var response = await native(args);
+    if (response.ret !== true) throw failure('YOUTUBE_' + (response.msg && typeof response.msg.status === 'number' ? response.msg.status : 'SERVICE'));
+    try { return typeof response.msg === 'string' ? JSON.parse(response.msg) : response.msg; } catch (_) { throw failure('YOUTUBE_RESPONSE_FORMAT'); }
   }
   function pull() {
     if (pulling) return pulling;
@@ -34,16 +40,16 @@
       if (data.responseContext && data.responseContext.mainAppWebResponseContext && data.responseContext.mainAppWebResponseContext.loggedOut) {
         YTV.store.set('syncEnabled', false);
         current = null;
-        throw new Error('Sync session needs replacing');
+        throw failure('SESSION_SIGNED_OUT');
       }
-      if (data.error) throw new Error('YouTube history could not be read');
+      if (data.error) throw failure('YOUTUBE_REJECTED');
       var items = Core.parseHistory(data);
       YTV.store.set('syncRemote', { items: items, at: Date.now() });
       pullAt = Date.now();
       status = 'Connected · ' + items.length + ' recent YouTube entries';
       if (YTV.ui) items.forEach(function (v) { YTV.ui.refreshProgress(v.id); });
       return items;
-    })().catch(function () { status = 'Could not refresh YouTube history. Check the connection or replace the sync session.'; throw new Error(status); })
+    })().catch(function (e) { status = 'Could not refresh YouTube history (' + (e.syncCode || 'HISTORY_PROCESSING') + ').'; throw new Error(status); })
       .finally(function () { pulling = null; });
     return pulling;
   }

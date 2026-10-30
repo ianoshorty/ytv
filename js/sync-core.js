@@ -34,13 +34,44 @@
     (session.cookies || []).forEach(function (c) { if (c.expires > Date.now() / 1000) map[c.name] = c.value; });
     return map;
   }
+  // Some VIDAA app contexts expose random values but no SubtleCrypto. SHA-1
+  // is required by YouTube's cookie-auth protocol; keep a verified fallback.
+  function sha1(input) {
+    var bytes = encodeURIComponent(input).replace(/%([0-9a-f]{2})/gi, function (_, hex) { return String.fromCharCode(parseInt(hex, 16)); });
+    var words = [], n = bytes.length, i, t;
+    for (i = 0; i < n; i++) words[i >> 2] = (words[i >> 2] || 0) | bytes.charCodeAt(i) << (24 - i % 4 * 8);
+    words[n >> 2] = (words[n >> 2] || 0) | 0x80 << (24 - n % 4 * 8);
+    words[(((n + 8) >> 6) + 1) * 16 - 1] = n * 8;
+    var h = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+    function rotate(v, bits) { return v << bits | v >>> (32 - bits); }
+    for (i = 0; i < words.length; i += 16) {
+      var w = [], a = h[0], b = h[1], c = h[2], d = h[3], e = h[4];
+      for (t = 0; t < 80; t++) {
+        w[t] = t < 16 ? words[i + t] || 0 : rotate(w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16], 1);
+        var f = t < 20 ? b & c | ~b & d : t < 40 ? b ^ c ^ d : t < 60 ? b & c | b & d | c & d : b ^ c ^ d;
+        var k = t < 20 ? 0x5a827999 : t < 40 ? 0x6ed9eba1 : t < 60 ? 0x8f1bbcdc : 0xca62c1d6;
+        var next = (rotate(a, 5) + f + e + k + w[t]) | 0;
+        e = d; d = c; c = rotate(b, 30); b = a; a = next;
+      }
+      h[0] = h[0] + a | 0; h[1] = h[1] + b | 0; h[2] = h[2] + c | 0; h[3] = h[3] + d | 0; h[4] = h[4] + e | 0;
+    }
+    return h.map(function (v) { return (v >>> 0).toString(16).padStart(8, '0'); }).join('');
+  }
+  async function digest(input) {
+    try {
+      if (root.crypto && root.crypto.subtle && typeof TextEncoder !== 'undefined') {
+        var bytes = await root.crypto.subtle.digest('SHA-1', new TextEncoder().encode(input));
+        return Array.from(new Uint8Array(bytes)).map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+      }
+    } catch (_) {}
+    return sha1(input);
+  }
   async function authorization(session) {
     var cookies = cookieMap(session), stamp = Math.floor(Date.now() / 1000), parts = [];
     if (!cookies['__Secure-3PSID'] || !(cookies.SAPISID || cookies['__Secure-3PAPISID'])) throw new Error('Sync session needs replacing');
     for (var pair of [['SAPISIDHASH', cookies.SAPISID || cookies['__Secure-3PAPISID']], ['SAPISID1PHASH', cookies['__Secure-1PAPISID']], ['SAPISID3PHASH', cookies['__Secure-3PAPISID']]]) {
       if (!pair[1]) continue;
-      var digest = await root.crypto.subtle.digest('SHA-1', new TextEncoder().encode(stamp + ' ' + pair[1] + ' ' + ORIGIN));
-      parts.push(pair[0] + ' ' + stamp + '_' + Array.from(new Uint8Array(digest)).map(function (v) { return v.toString(16).padStart(2, '0'); }).join(''));
+      parts.push(pair[0] + ' ' + stamp + '_' + await digest(stamp + ' ' + pair[1] + ' ' + ORIGIN));
     }
     return parts.join(' ');
   }
@@ -120,7 +151,7 @@
     Object.keys(p).forEach(function (key) { u.searchParams.set(key, p[key]); });
     return { url: u.href, method: 'get', timeout: 15, withCredentials: false, certLapsedFunctional: false, custom_headers: { Cookie: cookieHeader(session), 'User-Agent': AGENT } };
   }
-  var core = { validateSession: validateSession, validId: validId, apiArgs: apiArgs, parseHistory: parseHistory, tracking: tracking, statsArgs: statsArgs, HISTORY_FIELDS: HISTORY_FIELDS };
+  var core = { validateSession: validateSession, validId: validId, apiArgs: apiArgs, parseHistory: parseHistory, tracking: tracking, statsArgs: statsArgs, sha1: sha1, HISTORY_FIELDS: HISTORY_FIELDS };
   if (typeof module === 'object' && module.exports) module.exports = core;
   else root.YTVSyncCore = core;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
