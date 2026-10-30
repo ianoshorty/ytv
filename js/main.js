@@ -14,7 +14,7 @@
 
   var rail = document.getElementById("rail");
   rail.appendChild(YTV.el("div", "rail-tab", "☰")); // shown while the menu is shrunk
-  [["home", "Home"], ["recent", "Recent"], ["sent", "Sent to TV"], ["subs", "Subscriptions"], ["search", "Search"], ["controls", "Controls"], ["account", "Account"]].forEach(function (s) {
+  [["home", "Home"], ["recent", "Recent"], ["youtubeHistory", "YouTube history"], ["sent", "Sent to TV"], ["subs", "Subscriptions"], ["search", "Search"], ["controls", "Controls"], ["account", "Account"]].forEach(function (s) {
     var item = YTV.el("div", "rail-item f", s[1]);
     item.dataset.screen = s[0];
     item._select = function () { YTV.nav.go(s[0], {}, true); };
@@ -53,4 +53,5 @@
 
   YTV.nav.go("home", {}, true);
   YTV.send.start();
+  YTV.sync.start();
 })();

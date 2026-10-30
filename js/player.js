@@ -26,6 +26,7 @@
   var yt = null, ytReady = null;
   var list = [], index = 0, open = false;
   var hudTimer, tick;
+  var playGeneration = 0;
   var speed = YTV.store.get("speed", 1);
   var quality = YTV.store.get("quality", 1080);
   var captions = YTV.store.get("captions", false);
@@ -92,7 +93,7 @@
               YTV.toast(msg);
               if (open) {
                 YTV.history.remove(video().id); // never played, so not "recent"
-                close(true);
+                close(true, true);
               }
             }
           }
@@ -122,6 +123,7 @@
       YTV.history.progress(video().id, d, d);
       close(true);
     }
+    if (e.data === YT.PlayerState.PAUSED && open) YTV.sync.pause(yt.getCurrentTime(), yt.getDuration(), yt.getPlaybackRate());
     showHud();
   }
 
@@ -132,6 +134,7 @@
     if (Date.now() - lastSave < 5000) return;
     lastSave = Date.now();
     YTV.history.progress(video().id, yt.getCurrentTime(), yt.getDuration());
+    YTV.sync.sample(yt.getCurrentTime(), yt.getDuration(), yt.getPlaybackRate());
   }
 
   function video() { return list[index]; }
@@ -160,6 +163,7 @@
   }
 
   function setSpeed(delta) {
+    YTV.sync.sample(yt.getCurrentTime(), yt.getDuration(), yt.getPlaybackRate());
     var i = SPEEDS.indexOf(speed);
     speed = SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, (i < 0 ? 3 : i) + delta))];
     YTV.store.set("speed", speed);
@@ -183,6 +187,7 @@
   }
 
   function seek(s) {
+    YTV.sync.seek();
     yt.seekTo(Math.max(0, yt.getCurrentTime() + s), true);
     YTV.toast((s > 0 ? "+" : "−") + Math.abs(s) + " s");
   }
@@ -192,9 +197,11 @@
   }
 
   // ended: the video finished, so its position was already saved.
-  function close(ended) {
+  function close(ended, failed) {
+    playGeneration++;
     open = false;
     clearInterval(tick);
+    if (yt && yt.getCurrentTime) YTV.sync.end(yt.getCurrentTime(), yt.getDuration(), yt.getPlaybackRate(), ended === true && !failed);
     if (yt && yt.getCurrentTime && ended !== true && yt.getCurrentTime() > 0) {
       YTV.history.progress(video().id, yt.getCurrentTime(), yt.getDuration());
     }
@@ -210,27 +217,34 @@
     isPlaying: function (id) { return open && video().id === id; },
 
     play: function (videos, i) {
+      if (open && yt && yt.getCurrentTime) {
+        YTV.history.progress(video().id, yt.getCurrentTime(), yt.getDuration());
+        YTV.sync.end(yt.getCurrentTime(), yt.getDuration(), yt.getPlaybackRate(), false);
+        YTV.ui.refreshProgress(video().id);
+      }
       if (!layer) build();
       list = videos;
       index = i;
       var v = video();
+      var generation = ++playGeneration;
       hudTitle.textContent = v.title;
       hudMeta.textContent = [v.channel, v.published ? YTV.ago(v.published) : ""].filter(Boolean).join(" · ");
       layer.style.display = "block";
       document.body.classList.add("playing");
       open = true;
       showHud();
-      var at = YTV.history.resumeAt(v.id);
+      var at = YTV.history.resumeAt(v.id, v.seconds);
       YTV.history.start(v);
       YTV.send.markPlayed(v.id);
       loadApi().then(function () {
-        if (!open) return;
+        if (!open || generation !== playGeneration) return;
+        YTV.sync.begin(v, at);
         yt.loadVideoById({ videoId: v.id, startSeconds: at });
         if (at) YTV.toast("Resuming at " + YTV.clock(at) + " · press 0 to start over");
         clearInterval(tick);
         lastSave = Date.now();
         tick = setInterval(function () { updateHud(); remember(); }, 500);
-      }, function (e) { YTV.toast(e.message); close(true); });
+      }, function (e) { YTV.toast(e.message); close(true, true); });
     },
 
     // Returns true if the key was handled.
@@ -257,6 +271,7 @@
       else if (code === KEY.YELLOW) nextQuality();
       else if (code === KEY.BLUE) { if (!YTV.send.playWaiting()) YTV.toast("Nothing waiting from your phone"); }
       else if (code >= 48 && code <= 57) {
+        YTV.sync.seek();
         yt.seekTo((yt.getDuration() || 0) * (code - 48) / 10, true);
         YTV.toast((code - 48) * 10 + "%");
       }

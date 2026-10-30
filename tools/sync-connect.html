@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><meta charset="utf-8">
+<meta name="referrer" content="no-referrer"><title>Connect YTV history sync</title>
+<style>body{background:#151b27;color:white;font:23px/1.5 sans-serif;margin:25px}p{white-space:pre-wrap}</style>
+<h2>YTV history sync</h2><p id="status">Waiting for the private setup page…</p>
+<script src="../js/sync-core.js"></script><script>
+(function () {
+  'use strict';
+  var params = new URLSearchParams(location.hash.slice(1)), nonce = params.get('nonce'), expected = params.get('parent');
+  var output = document.getElementById('status'), saved = false;
+  try {
+    var u = new URL(expected);
+    if (window.parent === window || !/^[A-Za-z0-9_-]{32,80}$/.test(nonce) || u.protocol !== 'https:' || u.origin !== expected ||
+        !/^(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/.test(u.hostname)) throw new Error();
+  } catch (_) { output.textContent = 'Open this helper from the private local setup page.'; return; }
+  history.replaceState(null, '', location.pathname);
+  addEventListener('message', function (event) {
+    if (saved || event.source !== window.parent || event.origin !== expected || !event.data || event.data.type !== 'ytv-sync-session' || event.data.nonce !== nonce) return;
+    try {
+      var session = window.YTVSyncCore.validateSession(event.data.session), text = JSON.stringify(session);
+      localStorage.setItem('ytv.syncEnabled', 'false');
+      localStorage.setItem('ytv.syncSession', text);
+      if (localStorage.getItem('ytv.syncSession') !== text) throw new Error();
+      localStorage.removeItem('ytv.syncRemote');
+      localStorage.removeItem('ytv.syncOutbox');
+      saved = true;
+      output.textContent = 'Session saved on this TV for YTV. Sync is paused until you enable it in Account.';
+      window.parent.postMessage({ type: 'ytv-sync-connected', nonce: nonce, saved: true }, expected);
+    } catch (_) {
+      output.textContent = 'Could not save the session. Sync was not enabled.';
+      window.parent.postMessage({ type: 'ytv-sync-connected', nonce: nonce, saved: false }, expected);
+    }
+  });
+  var count = 0, timer = setInterval(function () {
+    if (saved || ++count > 30) { clearInterval(timer); return; }
+    window.parent.postMessage({ type: 'ytv-sync-ready', nonce: nonce }, expected);
+  }, 1000);
+})();
+</script></html>

@@ -164,6 +164,9 @@
   // --- building blocks -----------------------------------------------------
   // The bar under a thumbnail showing how much you've watched.
   function setProgress(card) {
+    var seen = YTV.history.seen(card.dataset.id), badge = card.querySelector('.history-badge');
+    if (seen && !badge) card.querySelector('.thumb').appendChild(YTV.el('span', 'badge history-badge', 'In history'));
+    if (!seen && badge) badge.parentNode.removeChild(badge);
     var f = YTV.history.fraction(card.dataset.id);
     var bar = card.querySelector(".progress");
     bar.style.display = f === null || f === 0 ? "none" : "";
@@ -225,8 +228,10 @@
     videoCard: function (v, onSelect) {
       var card = YTV.el("div", "card f" + (v.short ? " short" : ""));
       var thumb = YTV.el("div", "thumb");
+      if (YTV.history.seen(v.id)) thumb.appendChild(YTV.el("span", "badge history-badge", "In history"));
       if (v.thumb) {
         var img = YTV.el("img");
+        img.loading = "lazy";
         img.src = v.thumb;
         thumb.appendChild(img);
       }

@@ -48,7 +48,7 @@ The installer isn't in this repo. It's built on what these projects documented:
 
 ## Status
 
-**0.7: Phase 1, sign-in, subscriptions, resume, send from your phone, Home rows and category rows.**
+**0.8: optional TV-native history sync, alongside subscriptions, resume, send from your phone, Home rows and category rows.**
 
 - **Home:** rows that scroll sideways: Sent from your phone, Continue watching
   on this TV, Latest from your subscriptions (no Shorts, cached 30 minutes),
@@ -59,7 +59,15 @@ The installer isn't in this repo. It's built on what these projects documented:
   game), then YouTube categories (Gaming, News & Politics, Sport…). Built from
   data YTV already fetches, so no extra quota
 - **Recent:** everything played in YTV on this TV, with progress bars; videos
-  resume where you stopped (YouTube's own history isn't available to apps)
+  resume where you stopped
+- **YouTube history sync (optional):** a separate session connected once to the
+  TV lets YTV import recent YouTube history and report new playback directly.
+  No phone or computer companion runs while watching. Enable or pause it in
+  Account. YouTube progress, when supplied, supports approximate resume;
+  an entry without progress is labelled "In history" rather than finished.
+  This uses undocumented YouTube endpoints and the VIDAA native HTTP service;
+  it may need a new session if Google expires the connection. The private setup
+  tools and session notes are kept outside this public repository.
 - **Send to TV:** save a video to your YouTube playlist called "TV" (e.g. on
   your phone) and YTV plays it within about 10 seconds while it's open, or
   offers it (Blue) if something's already playing. Read-only access means it

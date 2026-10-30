@@ -43,7 +43,7 @@
 
     var unfinished = YTV.history.unfinished();
     if (unfinished.length) {
-      YTV.ui.videoRow(el, "Continue watching on this TV", function () { return Promise.resolve(unfinished); });
+      YTV.ui.videoRow(el, "Continue watching", function () { return Promise.resolve(unfinished); });
     }
 
     if (needsSetup(el)) return;
@@ -84,7 +84,7 @@
 
   // --- Recent: everything played on this TV --------------------------------
   S.recent = function (el) {
-    var h = header(el, "Recent", "Played in YTV on this TV, newest first. YouTube's own history isn't available to apps.");
+    var h = header(el, "Recent", "Played in YTV on this TV, newest first. YouTube history is in the separate menu section.");
     var list = YTV.history.all();
     if (!list.length) {
       YTV.ui.message(el, "Nothing yet. Videos you play in YTV will appear here, with where you stopped.");
@@ -96,6 +96,20 @@
       YTV.nav.go("recent", {}, true);
     }, "small"));
     YTV.ui.videoGrid(el, function () { return Promise.resolve({ videos: list }); }, 4);
+  };
+
+  S.youtubeHistory = function (el, params) {
+    var h = header(el, 'YouTube history', 'Recent history from YouTube. Progress is shown when YouTube provides it.');
+    if (!YTV.sync.configured()) {
+      YTV.ui.message(el, 'Connect a history sync session first. Your usual YTV sign-in and Premium playback are separate.');
+      el.appendChild(YTV.ui.button('Account', function () { YTV.nav.go('account', {}, true); }));
+      return;
+    }
+    h.appendChild(YTV.ui.button('Refresh', function () { YTV.nav.go('youtubeHistory', { force: true }, true); }, 'small'));
+    var cached = YTV.sync.remote();
+    YTV.ui.videoGrid(el, function () {
+      return (cached.length && !params.force ? Promise.resolve(cached) : YTV.sync.pull()).then(function (videos) { return { videos: videos }; });
+    }, 4);
   };
 
   // --- Sent to TV: your "TV" playlist --------------------------------------
@@ -292,6 +306,7 @@
         YTV.toast("Subscriptions will reload");
       }));
       body.appendChild(YTV.ui.button("Sign out", function () {
+        YTV.sync.disable();
         YTV.auth.signOut().then(function () { YTV.toast("Signed out"); YTV.nav.go("account", {}, true); });
       }));
     } else {
@@ -336,10 +351,36 @@
     function label() { shorts.textContent = "Hide Shorts: " + (YTV.store.get("hideShorts", true) ? "on" : "off"); }
     label();
     settings.appendChild(shorts);
+    settings.appendChild(YTV.el('h2', null, 'YouTube history sync'));
+    settings.appendChild(YTV.el('div', 'info', YTV.sync.status()));
+    function redrawAccount() { if (YTV.nav.top() && YTV.nav.top().el === el) YTV.nav.go('account', {}, true); }
+    if (YTV.sync.configured()) {
+      if (YTV.sync.enabled()) {
+        settings.appendChild(YTV.ui.button('Pause history sync', function () { YTV.sync.disable(); redrawAccount(); }));
+      } else {
+        var enable = YTV.ui.button('Enable history sync', function () {
+          enable.textContent = 'Checking the connection…';
+          YTV.sync.enable().then(function () { YTV.toast('History sync enabled'); redrawAccount(); }, function (e) { YTV.toast(e.message); redrawAccount(); });
+        });
+        settings.appendChild(enable);
+      }
+      settings.appendChild(YTV.ui.button('Refresh YouTube history', function () { YTV.sync.pull().then(redrawAccount, function (e) { YTV.toast(e.message); redrawAccount(); }); }));
+      if (YTV.sync.pending()) {
+        settings.appendChild(YTV.el('div', 'info', YTV.sync.pending() + ' videos have pending updates.' + (YTV.sync.uncertain() ? ' Some requests may already have reached YouTube; retrying can repeat an update.' : '')));
+        if (YTV.sync.enabled()) settings.appendChild(YTV.ui.button('Retry pending updates', function () { YTV.sync.retry().then(redrawAccount); }));
+      }
+      var confirmUntil = 0;
+      var disconnect = YTV.ui.button('Remove sync connection', function () {
+        if (Date.now() > confirmUntil) { confirmUntil = Date.now() + 5000; disconnect.textContent = 'Press OK again to remove the sync connection'; return; }
+        YTV.sync.disconnect(); redrawAccount();
+      });
+      settings.appendChild(disconnect);
+    } else settings.appendChild(YTV.el('div', 'info', 'Use the one-time private session setup to connect history sync on this TV.'));
+    settings.appendChild(YTV.el('div', 'info', 'Sync sends new playback to YouTube and imports recent history. It uses a separate session saved on this TV; no phone or computer is needed while watching.'));
     settings.appendChild(YTV.el("div", "info", "While playing: ↑/↓ speed, Green captions, Yellow quality. All three are remembered between videos."));
     settings.appendChild(YTV.el("div", "info", "Send to TV: on your phone, Save a video to your playlist called “TV”. YTV plays it within about 10 seconds while it's open (status: " +
       YTV.send.status + "). YTV can't remove videos from that playlist, so tidy it on your phone now and then."));
-    settings.appendChild(YTV.el("div", "info", "Ads and watch history: YouTube's player only knows about Premium and records history if you're signed in to YouTube in the TV's web browser. Signing in above only lets YTV read your subscriptions."));
+    settings.appendChild(YTV.el("div", "info", "Premium playback uses the player's existing YouTube session. The sign-in above reads your subscriptions; history sync has its own connection."));
     settings.appendChild(YTV.el("div", "info", "YouTube allowance used today: about " + YTV.quotaToday() + " of 10,000 units."));
     settings.appendChild(YTV.el("div", "info", launchInfo()));
     settings.appendChild(YTV.el("div", "info", "YTV " + YTV.VERSION + (YTV.MOCK ? " · sample data" : "")));
