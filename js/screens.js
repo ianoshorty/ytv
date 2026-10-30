@@ -84,7 +84,7 @@
 
   // --- Recent: everything played on this TV --------------------------------
   S.recent = function (el) {
-    var h = header(el, "Recent", "Last 12 videos played on this TV. Hold OK on a video for watch-history actions.");
+    var h = header(el, "Recent", "Played on this TV, newest first. Hold OK on a video for watch-history actions.");
     var list = YTV.history.all();
     var busy = false;
     var syncButton = YTV.ui.button('Sync progress to YouTube', function () {
@@ -103,7 +103,7 @@
       });
     }, 'small');
     h.appendChild(syncButton);
-    var outcome = YTV.ui.message(el, 'Sends TV progress only when it is ahead of YouTube. Unknown cloud progress is skipped unless the TV record is complete.', 'hint');
+    var outcome = YTV.ui.message(el, 'Sync checks only the latest 12 TV entries. Sends progress when ahead of YouTube; unknown cloud progress is skipped unless the TV record is complete.', 'hint');
     if (!list.length) {
       YTV.ui.message(el, "Nothing yet. Videos you play in YTV will appear here, with where you stopped.");
       return;

@@ -4,11 +4,10 @@
   "use strict";
 
   var YTV = window.YTV;
-  var MAX = 12;
   var MIN_RESUME = 15; // seconds; earlier than this just starts again
   var DONE = 0.95; // watched this fraction or more counts as finished
 
-  function local() { return YTV.store.get("history", []).slice(0, MAX); }
+  function local() { return YTV.store.get("history", []); }
   function remote(id) { return YTV.sync && YTV.sync.configured() ? YTV.sync.get(id) : null; }
   function effective(h, r) {
     if (!r) return h;
@@ -24,7 +23,7 @@
     list.forEach(function (h) { ids[h.id] = true; });
     return list.concat(YTV.sync && YTV.sync.configured() ? YTV.sync.remote().filter(function (r) { return !ids[r.id]; }).map(function (r) { return effective(null, r); }) : []);
   }
-  function save(list) { YTV.store.set("history", list.slice(0, MAX)); }
+  function save(list) { YTV.store.set("history", list); }
 
   function find(list, id) {
     for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
@@ -96,7 +95,7 @@
 
     // Not finished and started: what "Continue watching" shows.
     unfinished: function () {
-      return combined().filter(function (h) { return !h.done && !h.live && h.pos >= MIN_RESUME; }).slice(0, MAX);
+      return combined().filter(function (h) { return !h.done && !h.live && h.pos >= MIN_RESUME; });
     },
 
     seen: function (id) { return !!remote(id); },

@@ -58,8 +58,11 @@ The installer isn't in this repo. It's built on what these projects documented:
   they're about: specific rows from tags and topics several videos share (e.g. a
   game), then YouTube categories (Gaming, News & Politics, Sport…). Built from
   data YTV already fetches, so no extra quota
-- **Recent:** the last 12 videos played in YTV on this TV, with progress bars.
-  **Sync progress to YouTube** compares the raw TV playback record with a fresh
+- **Recent:** videos played in YTV on this TV, with progress bars and no list
+  cap. Continue watching also shows all eligible entries available locally or
+  in the imported YouTube history, without a display cap.
+  **Sync progress to YouTube** checks only the latest 12 TV entries, comparing
+  the raw TV playback record with a fresh
   history read and sends only progress that is further ahead. Videos with
   unknown cloud progress are skipped unless locally complete. Missing local
   durations are skipped; progress
