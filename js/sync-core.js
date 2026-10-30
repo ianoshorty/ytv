@@ -16,7 +16,7 @@
   function validId(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{11}$/.test(id); }
   function validateSession(value) {
     if (!value || value.version !== 1 || !Array.isArray(value.cookies) || value.cookies.length > 80) throw new Error('Invalid sync session');
-    var copy = { version: 1, clientVersion: VERSION, accountIndex: 0, importedAt: Date.now(), cookies: [] };
+    var copy = { version: 1, clientVersion: VERSION, accountIndex: 0, importedAt: Number.isFinite(value.importedAt) ? value.importedAt : Date.now(), cookies: [] };
     value.cookies.forEach(function (c) {
       if (!c || ['.youtube.com', 'youtube.com', 'www.youtube.com', '.www.youtube.com'].indexOf(c.domain) < 0 || c.path !== '/' ||
           typeof c.name !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(c.name) || typeof c.value !== 'string' || !/^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*$/.test(c.value) ||
@@ -25,9 +25,36 @@
     });
     var pairs = cookieMap(copy);
     if (!pairs['__Secure-3PSID']) throw new Error('Sync session needs replacing');
+    if (!pairs.LOGIN_INFO) throw new Error('Sync login cookie unavailable');
     if (!(pairs.SAPISID || pairs['__Secure-3PAPISID'])) throw new Error('Sync signing cookie unavailable');
     if (JSON.stringify(copy).length > 64000) throw new Error('Sync session too large');
     return copy;
+  }
+  function mergeCookies(session, updates) {
+    var copy = validateSession(session), now = Date.now() / 1000;
+    if (typeof updates === 'string') updates = [updates];
+    if (!Array.isArray(updates)) return copy;
+    updates.slice(0, 80).forEach(function (line) {
+      if (typeof line !== 'string' || line.length > 16000) return;
+      var parts = line.split(';'), first = parts.shift(), split = first.indexOf('=');
+      if (split < 1) return;
+      var name = first.slice(0, split).trim(), value = first.slice(split + 1).trim(), attrs = Object.create(null);
+      if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) || !/^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*$/.test(value)) return;
+      parts.forEach(function (part) { var i = part.indexOf('='); attrs[(i < 0 ? part : part.slice(0, i)).trim().toLowerCase()] = i < 0 ? true : part.slice(i + 1).trim(); });
+      var domain = String(attrs.domain || 'www.youtube.com').toLowerCase().replace(/^\./, ''), path = attrs.path || '/';
+      if (['youtube.com', 'www.youtube.com'].indexOf(domain) < 0 || path !== '/') return;
+      if (/^(__Secure-|__Host-)/.test(name) && attrs.secure !== true) return;
+      if (name.indexOf('__Host-') === 0 && attrs.domain) return;
+      var previous = copy.cookies.filter(function (c) { return c.name === name && c.domain.replace(/^\./, '') === domain; })[0];
+      var expiry = typeof attrs.expires === 'string' ? Date.parse(attrs.expires) / 1000 : NaN;
+      if (typeof attrs['max-age'] === 'string' && /^-?\d+$/.test(attrs['max-age'])) expiry = now + Number(attrs['max-age']);
+      // Do not invent a persistent lifetime for a new session-only cookie.
+      if (!Number.isFinite(expiry)) expiry = previous ? previous.expires : NaN;
+      if (!Number.isFinite(expiry)) return;
+      copy.cookies = copy.cookies.filter(function (c) { return !(c.name === name && c.domain.replace(/^\./, '') === domain); });
+      if (value && expiry > now) copy.cookies.push({ name: name, value: value, domain: attrs.domain ? '.' + domain : domain, path: '/', expires: expiry });
+    });
+    return validateSession(copy);
   }
   function cookieMap(session) {
     var map = Object.create(null);
@@ -151,7 +178,7 @@
     Object.keys(p).forEach(function (key) { u.searchParams.set(key, p[key]); });
     return { url: u.href, method: 'get', timeout: 15, withCredentials: false, certLapsedFunctional: false, custom_headers: { Cookie: cookieHeader(session), 'User-Agent': AGENT } };
   }
-  var core = { validateSession: validateSession, validId: validId, apiArgs: apiArgs, parseHistory: parseHistory, tracking: tracking, statsArgs: statsArgs, sha1: sha1, HISTORY_FIELDS: HISTORY_FIELDS };
+  var core = { validateSession: validateSession, mergeCookies: mergeCookies, validId: validId, apiArgs: apiArgs, parseHistory: parseHistory, tracking: tracking, statsArgs: statsArgs, sha1: sha1, HISTORY_FIELDS: HISTORY_FIELDS };
   if (typeof module === 'object' && module.exports) module.exports = core;
   else root.YTVSyncCore = core;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

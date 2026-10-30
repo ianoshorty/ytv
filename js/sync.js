@@ -5,18 +5,29 @@
   var YTV = window.YTV, Core = window.YTVSyncCore;
   var jobs = YTV.store.get('syncOutbox', []), current = null, flushing = null, pulling = null;
   var metadata = {}, timer, pullAt = 0;
+  var healthAt = 0, renewing = null;
+  var LOGIN_FIELDS = 'responseContext/mainAppWebResponseContext/loggedOut';
+  var connectionId = (YTV.store.get('syncSession', {}) || {}).importedAt || 0;
+  jobs.forEach(function (j) { if (j.connectionId == null) j.connectionId = connectionId; });
   var status = 'Not connected';
-  function enabled() { return !YTV.MOCK && YTV.store.get('syncEnabled', false); }
-  function session() { return Core.validateSession(YTV.store.get('syncSession', null)); }
-  function persist() { YTV.store.set('syncOutbox', jobs.slice(-40)); }
+  function refreshConnection() {
+    var id = (YTV.store.get('syncSession', {}) || {}).importedAt || 0;
+    if (id === connectionId) return;
+    connectionId = id;
+    jobs = YTV.store.get('syncOutbox', []).filter(function (j) { return j.connectionId === id; });
+    current = null; metadata = {}; healthAt = 0;
+  }
+  function enabled() { refreshConnection(); return !YTV.MOCK && YTV.store.get('syncEnabled', false); }
+  function session() { refreshConnection(); return Core.validateSession(YTV.store.get('syncSession', null)); }
+  function persist() { refreshConnection(); YTV.store.set('syncOutbox', jobs.slice(-40)); }
   function cache() { return YTV.store.get('syncRemote', { items: [], at: 0 }); }
   function failure(code) { var error = new Error(code); error.syncCode = code; return error; }
-  async function native(args) {
+  async function native(args, kind) {
     var controller = new AbortController(), timeout = setTimeout(function () { controller.abort(); }, 25000);
     try {
       var r = await fetch('http://localhost:9009/service/basic/fetcher', {
         method: 'POST', credentials: 'omit', redirect: 'error', signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api: 'fetchResponse', args: args })
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api: kind || 'fetchResponse', args: args })
       });
       if (!r.ok) throw failure('TV_HTTP_' + r.status);
       try { return await r.json(); } catch (_) { throw failure('TV_RESPONSE_FORMAT'); }
@@ -25,24 +36,56 @@
       throw failure(e.name === 'AbortError' ? 'TV_TIMEOUT' : 'TV_CONNECTION');
     } finally { clearTimeout(timeout); }
   }
-  async function api(endpoint, body) {
+  async function api(endpoint, body, fields) {
     var args;
     try { args = await Core.apiArgs(session(), endpoint, body); } catch (_) { throw failure('SIGN_REQUEST'); }
+    if (fields) { var url = new URL(args.url); url.searchParams.set('fields', fields); args.url = url.href; }
     var response = await native(args);
     if (response.ret !== true) throw failure('YOUTUBE_' + (response.msg && typeof response.msg.status === 'number' ? response.msg.status : 'SERVICE'));
     try { return typeof response.msg === 'string' ? JSON.parse(response.msg) : response.msg; } catch (_) { throw failure('YOUTUBE_RESPONSE_FORMAT'); }
+  }
+  function loggedOut(data) { return data && data.responseContext && data.responseContext.mainAppWebResponseContext && data.responseContext.mainAppWebResponseContext.loggedOut; }
+  function requireLogin(data) {
+    if (loggedOut(data) === true) {
+      YTV.store.set('syncEnabled', false); current = null;
+      throw failure('SESSION_SIGNED_OUT');
+    }
+    if (loggedOut(data) !== false) throw failure('SESSION_STATUS_MISSING');
+  }
+  function keepSession() {
+    if (Date.now() - healthAt < 3 * 60000) return Promise.resolve();
+    if (renewing) return renewing;
+    renewing = (async function () {
+      var original = JSON.stringify(YTV.store.get('syncSession', null));
+      var args = await Core.apiArgs(session(), 'browse', { browseId: 'FEhistory' });
+      var url = new URL(args.url); url.searchParams.set('fields', LOGIN_FIELDS); args.url = url.href;
+      // fetchHead returns headers as JSON, making Set-Cookie available without
+      // changing the browser cookie jar or buffering a full history response.
+      var response = await native(args, 'fetchHead');
+      if (response.ret !== true || !response.msg || typeof response.msg !== 'object') throw failure('SESSION_REFRESH');
+      if (JSON.stringify(YTV.store.get('syncSession', null)) !== original) throw failure('SESSION_CHANGED');
+      var updated;
+      try { updated = Core.mergeCookies(session(), response.msg['set-cookie'] || response.msg['Set-Cookie']); }
+      catch (_) { YTV.store.set('syncEnabled', false); current = null; throw failure('SESSION_COOKIE_CLEARED'); }
+      YTV.store.set('syncSession', updated);
+      if (JSON.stringify(YTV.store.get('syncSession', null)) !== JSON.stringify(updated)) throw failure('SESSION_STORAGE');
+      requireLogin(await api('browse', { browseId: 'FEhistory' }, LOGIN_FIELDS));
+      healthAt = Date.now();
+    })().finally(function () { renewing = null; });
+    return renewing;
   }
   function pull() {
     if (pulling) return pulling;
     pulling = (async function () {
       status = 'Reading YouTube history…';
+      refreshConnection();
+      var readingConnection = connectionId;
       var data = await api('browse', { browseId: 'FEhistory' });
-      if (data.responseContext && data.responseContext.mainAppWebResponseContext && data.responseContext.mainAppWebResponseContext.loggedOut) {
-        YTV.store.set('syncEnabled', false);
-        current = null;
-        throw failure('SESSION_SIGNED_OUT');
-      }
+      refreshConnection();
+      if (readingConnection !== connectionId) throw failure('SESSION_CHANGED');
+      requireLogin(data);
       if (data.error) throw failure('YOUTUBE_REJECTED');
+      await keepSession();
       var items = Core.parseHistory(data);
       YTV.store.set('syncRemote', { items: items, at: Date.now() });
       pullAt = Date.now();
@@ -80,6 +123,7 @@
     if (manual) jobs.forEach(function (job) { job.uncertain = false; });
     if (flushing) return flushing;
     flushing = (async function () {
+      await keepSession();
       for (var job of jobs.slice()) {
         if (!enabled()) break;
         if (job.uncertain || !job.ranges.length) continue;
@@ -87,6 +131,7 @@
         var urls;
         try { urls = await tracking(job); }
         catch (_) { status = 'Could not prepare a watched update. Your progress is saved on this TV.'; continue; }
+        if (!enabled() || job.connectionId !== connectionId) break;
         var segments = groups(snapshot.ranges);
         try {
           if (!job.playbackSent) {
@@ -95,7 +140,7 @@
             persist();
           }
           for (var i = 0; i < segments.length; i++) {
-            if (!enabled()) break;
+            if (!enabled() || job.connectionId !== connectionId) break;
             var segment = segments[i], last = i === segments.length - 1;
             await sendStats(Core.statsArgs(session(), urls[1], job.id, job.cpn, segment, last ? snapshot.pos : segment.end, last && snapshot.final && snapshot.endSeq === segment.seq, false));
             job.ranges = job.ranges.filter(function (r) { return r.seq > segment.seq; });
@@ -111,7 +156,7 @@
           status = 'A watched update was not confirmed. Use Retry pending updates in Account.';
         }
       }
-    })().catch(function () { status = 'Sync unavailable. Your progress is saved on this TV.'; })
+    })().catch(function (e) { status = 'Sync unavailable (' + (e.syncCode || 'CONNECTION') + '). Your progress is saved on this TV.'; })
       .finally(function () { flushing = null; });
     return flushing;
   }
@@ -166,7 +211,7 @@
     disconnect: function () {
       YTV.store.set('syncEnabled', false);
       ['syncSession', 'syncRemote', 'syncOutbox'].forEach(YTV.store.del);
-      jobs = []; current = null; metadata = {}; status = 'Not connected';
+      jobs = []; current = null; metadata = {}; healthAt = 0; status = 'Not connected';
     },
     retry: function () { return flush(true); },
     begin: function (video, at) {
@@ -175,7 +220,7 @@
       var bytes = new Uint8Array(16);
       if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(bytes);
       else for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-      current = { id: video.id, cpn: Array.from(bytes).map(function (v) { return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'[v & 63]; }).join(''),
+      current = { id: video.id, connectionId: connectionId, cpn: Array.from(bytes).map(function (v) { return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'[v & 63]; }).join(''),
         pos: at || 0, duration: video.seconds || 0, last: { pos: at || 0, at: Date.now() }, realSeconds: 0, ranges: [], seq: 0, playbackSent: false, final: false, closed: false, queued: false, uncertain: false };
     },
     sample: sample,
