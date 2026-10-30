@@ -93,6 +93,25 @@
     YTV.ui.videoGrid(el, function () { return Promise.resolve({ videos: list }); }, 4);
   };
 
+  // --- Sent to TV: your "TV" playlist --------------------------------------
+  S.sent = function (el) {
+    header(el, "Sent to TV", "Your YouTube playlist “TV”, newest first. Save a video to it on your phone and it plays here.");
+    if (needsSetup(el)) return;
+    if (!YTV.auth.signedIn()) {
+      YTV.ui.message(el, "Sign in to use Send to TV.");
+      return;
+    }
+    YTV.ui.message(el, "Status: " + YTV.send.status + ". Thumbnails with a full bar have been played on this TV.", "hint");
+    YTV.ui.videoGrid(el, function () {
+      return YTV.api.tvPlaylist(true).then(function (id) {
+        if (!id) throw new Error("No playlist called “TV” found in your YouTube account.");
+        return YTV.api.playlistQueue(id);
+      }).then(function (queue) {
+        return { videos: queue.map(function (q) { return q.video; }) };
+      });
+    }, 4);
+  };
+
   // --- Subscriptions: your channels ----------------------------------------
   S.subs = function (el) {
     header(el, "Subscriptions");

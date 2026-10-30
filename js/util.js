@@ -3,8 +3,18 @@
 (function () {
   "use strict";
 
+  // An old cached index.html (from before boot.js) loads an out-of-date list
+  // of scripts. Reload once from a fresh address, which the TV won't serve
+  // from its cache.
+  if (!window.YTV_BOOT_T && !/[?&]r=/.test(location.search)) {
+    window.YTV_STALE = true;
+    var q = location.search ? location.search + "&" : "?";
+    location.replace(location.pathname + q + "r=" + Date.now() + location.hash);
+    return;
+  }
+
   var YTV = window.YTV = {};
-  YTV.VERSION = "0.5.0";
+  YTV.VERSION = "0.5.1";
 
   YTV.el = function (tag, cls, text) {
     var e = document.createElement(tag);

@@ -23,21 +23,12 @@
     </div>
   </div>
   <script>
-    // The TV keeps pages cached until a full restart, so load the app's code
-    // and styles fresh on every launch. async=false keeps the scripts in order.
-    (function () {
-      var t = Date.now();
-      var css = document.createElement("link");
-      css.rel = "stylesheet";
-      css.href = "app.css?t=" + t;
-      document.head.appendChild(css);
-      ["util", "api", "auth", "mock", "history", "send", "nav", "player", "screens", "main"].forEach(function (name) {
-        var js = document.createElement("script");
-        js.src = "js/" + name + ".js?t=" + t;
-        js.async = false;
-        document.body.appendChild(js);
-      });
-    })();
+    // The TV keeps this page cached until a full restart, so everything else
+    // (including the list of scripts, in boot.js) is fetched fresh each launch.
+    window.YTV_BOOT_T = Date.now();
+    var boot = document.createElement("script");
+    boot.src = "boot.js?t=" + window.YTV_BOOT_T;
+    document.body.appendChild(boot);
   </script>
 </body>
 </html>
