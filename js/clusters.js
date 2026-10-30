@@ -5,19 +5,31 @@
 // - then broad rows from YouTube's own categories (Gaming, News & Politics, ...)
 // Each video goes in one row only, and bigger groups are picked first, so
 // "Formula 1" takes the F1 videos rather than one row per driver.
+// Biases (rules, not hard-coded names):
+// - a topic or tag row needs videos from 2+ channels, so one channel's
+//   habits don't make a row and its videos fall through to a category row
+// - a tag that's part of the uploader's own name ("TLDR" on "TLDR News")
+//   is ignored for that channel's videos
+// - a category row is named after a subject that makes up a good share of
+//   it (e.g. News & Politics with lots of weather → "News & Weather")
 (function () {
   "use strict";
 
   var YTV = window.YTV;
   var MIN_SPECIFIC = 4; // videos needed for a topic or tag row
+  var MIN_SPECIFIC_CHANNELS = 2; // channels needed for a topic or tag row
   var MIN_CATEGORY = 3; // videos needed for a category row
   var MAX_SPECIFIC = 4;
   var MAX_CATEGORY = 6;
+  var NAME_SHARE = 0.25; // share of a category row a subject needs to be in its name
 
+  // YouTube's categories: full name, and a short one for "<short> & <subject>".
   var CATEGORIES = {
-    1: "Film & Animation", 2: "Cars & Vehicles", 10: "Music", 15: "Pets & Animals", 17: "Sport",
-    19: "Travel & Events", 20: "Gaming", 22: "People & Blogs", 23: "Comedy", 24: "Entertainment",
-    25: "News & Politics", 26: "How-to & Style", 27: "Education", 28: "Science & Technology", 29: "Non-profits"
+    1: ["Film & Animation", "Film"], 2: ["Cars & Vehicles", "Cars"], 10: ["Music", "Music"],
+    15: ["Pets & Animals", "Animals"], 17: ["Sport", "Sport"], 19: ["Travel & Events", "Travel"],
+    20: ["Gaming", "Gaming"], 22: ["People & Blogs", "Vlogs"], 23: ["Comedy", "Comedy"],
+    24: ["Entertainment", "Entertainment"], 25: ["News & Politics", "News"], 26: ["How-to & Style", "How-to"],
+    27: ["Education", "Learning"], 28: ["Science & Technology", "Tech"], 29: ["Non-profits", "Non-profits"]
   };
 
   // Topic labels too broad to be useful as a row of their own.
@@ -33,7 +45,36 @@
 
   function norm(s) { return String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); }
 
-  // One group {title, videos[]} per key (category, topic or tag) any video has.
+  function channelOf(v) { return v.channelId || v.channel; }
+
+  // Keeps the uploader's capitals if they used any ("World of Warcraft"),
+  // otherwise capitalises words except small ones ("elden ring" → "Elden Ring"),
+  // and writes other two-letter words as abbreviations ("uk politics" → "UK Politics").
+  var SMALL = ["of", "and", "the", "in", "on", "a", "an", "to", "for", "vs"];
+  function titleCase(s) {
+    if (/[A-Z]/.test(s)) return s;
+    return s.split(" ").map(function (w, i) {
+      if (SMALL.indexOf(w) >= 0) return i > 0 ? w : w.charAt(0).toUpperCase() + w.slice(1);
+      if (w.length <= 2) return w.toUpperCase();
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(" ");
+  }
+
+  // The tags and topic labels of a video that say something about it. A tag
+  // that's part of the uploader's own name ("TLDR" from "TLDR News") names the
+  // channel, not the subject, so it's skipped for that channel's videos.
+  function subjects(v) {
+    var channel = norm(v.channel);
+    var tags = (v.tags || []).filter(function (t) {
+      var n = norm(t);
+      return n.length > 2 && !/^\d+$/.test(n) && BROAD_TAGS.indexOf(n) < 0 &&
+        !(channel && (channel.indexOf(n) >= 0 || n.indexOf(channel) >= 0));
+    }).map(titleCase);
+    var topics = (v.topics || []).filter(function (t) { return BROAD_TOPICS.indexOf(norm(t)) < 0; });
+    return { tags: tags, topics: topics };
+  }
+
+  // One group {key, title, videos[]} per key any video has.
   function collect(videos, keysOf) {
     var groups = {};
     videos.forEach(function (v) {
@@ -42,68 +83,73 @@
         var key = norm(raw);
         if (!key || seen[key]) return;
         seen[key] = true;
-        var g = groups[key] || (groups[key] = { title: raw, videos: [] });
+        var g = groups[key] || (groups[key] = { key: key, title: raw, videos: [] });
         g.videos.push(v);
       });
     });
     return Object.keys(groups).map(function (k) { return groups[k]; });
   }
 
+  function channelCount(videos) {
+    var seen = {};
+    videos.forEach(function (v) { seen[channelOf(v)] = true; });
+    return Object.keys(seen).length;
+  }
+
   // Repeatedly takes the group with the most videos not yet in a row, until
-  // none has `min` left or `max` rows are made. `taken` (video id -> true) is
+  // none qualifies or `max` rows are made. `taken` (video id -> true) is
   // shared between calls, so each video lands in one row only. On a tie the
   // earlier group in the list wins.
-  function pick(groups, min, max, taken) {
+  function pick(groups, min, minChannels, max, taken) {
     var rows = [];
     var left = groups.slice();
     while (rows.length < max) {
       var best = -1, bestFree = [];
       left.forEach(function (g, i) {
         var free = g.videos.filter(function (v) { return !taken[v.id]; });
-        if (free.length > bestFree.length) { best = i; bestFree = free; }
+        if (free.length > bestFree.length && channelCount(free) >= minChannels) { best = i; bestFree = free; }
       });
       if (best < 0 || bestFree.length < min) break;
       bestFree.forEach(function (v) { taken[v.id] = true; });
-      rows.push({ title: left[best].title, videos: bestFree });
+      rows.push({ key: left[best].key, title: left[best].title, videos: bestFree });
       left.splice(best, 1);
     }
     return rows;
   }
 
-  // Keeps the uploader's capitals if they used any ("World of Warcraft"),
-  // otherwise capitalises words except small ones ("elden ring" → "Elden Ring").
-  var SMALL = ["of", "and", "the", "in", "on", "a", "an", "to", "for", "vs"];
-  function titleCase(s) {
-    if (/[A-Z]/.test(s)) return s;
-    return s.split(" ").map(function (w, i) {
-      return i > 0 && SMALL.indexOf(w) >= 0 ? w : w.charAt(0).toUpperCase() + w.slice(1);
-    }).join(" ");
+  // "News & Politics" with lots of weather → "News & Weather". Picks the
+  // most common subject in the row if it covers NAME_SHARE of it (and 2+
+  // videos), but not the whole row (then the category name says enough).
+  // Subjects sharing a word with the category's name ("UK politics" in News
+  // & Politics) add nothing, so they're skipped.
+  function nameCategory(row) {
+    var names = CATEGORIES[row.key];
+    var nameWords = norm(names[0]).split(/[^a-z]+/);
+    var groups = collect(row.videos, function (v) {
+      var s = subjects(v);
+      return s.tags.concat(s.topics);
+    }).filter(function (g) {
+      var sharesWord = g.key.split(" ").some(function (w) { return w.length > 2 && nameWords.indexOf(w) >= 0; });
+      return !sharesWord && g.videos.length >= 2 && g.videos.length >= row.videos.length * NAME_SHARE &&
+        g.videos.length < row.videos.length;
+    }).sort(function (a, b) { return b.videos.length - a.videos.length; });
+    return groups.length ? names[1] + " & " + groups[0].title : names[0];
   }
 
   // videos -> [{title, videos}], specific rows first, then categories for
   // whatever's left.
   YTV.clusters = function (videos) {
     var taken = {};
-    var channelNames = {};
-    videos.forEach(function (v) { channelNames[norm(v.channel)] = true; });
-    var topics = collect(videos, function (v) {
-      return (v.topics || []).filter(function (t) { return BROAD_TOPICS.indexOf(norm(t)) < 0; });
-    });
-    var tags = collect(videos, function (v) {
-      return (v.tags || []).filter(function (t) {
-        var n = norm(t);
-        return n.length > 2 && !/^\d+$/.test(n) && BROAD_TAGS.indexOf(n) < 0 && !channelNames[n];
-      });
-    }).map(function (g) {
-      g.title = titleCase(g.title);
-      return g;
-    });
+    var tags = collect(videos, function (v) { return subjects(v).tags; });
+    var topics = collect(videos, function (v) { return subjects(v).topics; });
     // Tags go first so that on a tie the more specific name wins
     // ("World of Warcraft" over "Role-playing video game").
-    var specific = pick(tags.concat(topics), MIN_SPECIFIC, MAX_SPECIFIC, taken);
+    var specific = pick(tags.concat(topics), MIN_SPECIFIC, MIN_SPECIFIC_CHANNELS, MAX_SPECIFIC, taken);
     var categories = pick(collect(videos, function (v) {
-      return CATEGORIES[v.category] ? [CATEGORIES[v.category]] : [];
-    }), MIN_CATEGORY, MAX_CATEGORY, taken);
-    return specific.concat(categories);
+      return CATEGORIES[v.category] ? [String(v.category)] : [];
+    }), MIN_CATEGORY, 1, MAX_CATEGORY, taken).map(function (row) {
+      return { title: nameCategory(row), videos: row.videos };
+    });
+    return specific.map(function (r) { return { title: r.title, videos: r.videos }; }).concat(categories);
   };
 })();
