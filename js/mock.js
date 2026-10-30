@@ -32,11 +32,21 @@
       });
     }
     // The Gangnam Style sample stands in for a Short: vertical and 45 s.
+    // Rick Astley stands in for World of Warcraft videos (Gaming); Costa Rica
+    // for travel, so category and topic rows have something to group.
+    var ABOUT = {
+      dQw4w9WgXcQ: { categoryId: "20", tags: ["World of Warcraft", "WoW", "mmo"], topics: ["Role-playing_video_game", "Video_game_culture"] },
+      LXb3EKWsInQ: { categoryId: "19", tags: ["costa rica", "nature", "4K"], topics: ["Tourism", "Nature"] },
+      "9bZkp7q19f0": { categoryId: "10", tags: ["PSY"], topics: ["Music"] }
+    };
     if (path === "videos") {
       return later({ items: p.id.split(",").map(function (id, i) {
         var short = id === "9bZkp7q19f0";
+        var about = ABOUT[id] || { categoryId: "24", tags: [], topics: [] };
         return {
           id: id,
+          snippet: { categoryId: about.categoryId, tags: about.tags },
+          topicDetails: { topicCategories: about.topics.map(function (t) { return "https://en.wikipedia.org/wiki/" + t; }) },
           contentDetails: { duration: short ? "PT45S" : "PT" + (3 + i % 20) + "M" + (i * 7 % 60) + "S" },
           player: short ? { embedWidth: 563, embedHeight: 1000 } : { embedWidth: 1000, embedHeight: 563 }
         };

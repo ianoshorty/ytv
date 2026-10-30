@@ -9,7 +9,7 @@
   css.rel = "stylesheet";
   css.href = "app.css?t=" + t;
   document.head.appendChild(css);
-  ["util", "api", "auth", "mock", "history", "send", "nav", "player", "screens", "main"].forEach(function (name) {
+  ["util", "api", "auth", "mock", "history", "send", "clusters", "nav", "player", "screens", "main"].forEach(function (name) {
     var js = document.createElement("script");
     js.src = "js/" + name + ".js?t=" + t;
     js.async = false; // keep them in order

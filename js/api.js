@@ -56,23 +56,35 @@
     };
   }
 
-  // Adds durations and spots Shorts, and drops videos that no longer exist.
-  // 1 unit per 50. The API has no "is a Short" flag, so a Short is a
-  // vertical video of 3 minutes or less; asking for the player's size (with
-  // maxWidth set) reveals the video's shape at no extra cost.
+  // Adds durations, spots Shorts, and records what each video is about, and
+  // drops videos that no longer exist. 1 unit per 50, whatever parts are
+  // asked for.
+  // - Shorts: the API has no "is a Short" flag, so a Short is a vertical video
+  //   of 3 minutes or less; the player's size (with maxWidth set) gives the
+  //   video's shape.
+  // - Category rows: YouTube's category, the uploader's tags (first 15) and
+  //   YouTube's topic labels (Wikipedia page names).
   function addDetails(videos) {
     var chunks = [];
     for (var i = 0; i < videos.length; i += 50) chunks.push(videos.slice(i, i + 50));
     return Promise.all(chunks.map(function (chunk) {
-      return call("videos", { part: "contentDetails,player", maxWidth: 1000, id: chunk.map(function (v) { return v.id; }).join(","), maxResults: 50 }, 1);
+      return call("videos", {
+        part: "snippet,contentDetails,player,topicDetails", maxWidth: 1000,
+        id: chunk.map(function (v) { return v.id; }).join(","), maxResults: 50
+      }, 1);
     })).then(function (pages) {
       var info = {};
       pages.forEach(function (p) {
         (p.items || []).forEach(function (it) {
-          var pl = it.player || {};
+          var pl = it.player || {}, sn = it.snippet || {};
           info[it.id] = {
             seconds: YTV.isoSeconds(it.contentDetails.duration),
-            vertical: pl.embedHeight && pl.embedWidth ? +pl.embedHeight > +pl.embedWidth : null
+            vertical: pl.embedHeight && pl.embedWidth ? +pl.embedHeight > +pl.embedWidth : null,
+            category: sn.categoryId || null,
+            tags: (sn.tags || []).slice(0, 15),
+            topics: ((it.topicDetails || {}).topicCategories || []).map(function (u) {
+              return decodeURIComponent(u.split("/wiki/")[1] || "").replace(/_/g, " ");
+            })
           };
         });
       });
@@ -80,6 +92,9 @@
         var d = info[v.id];
         v.seconds = d.seconds;
         v.short = !v.live && (d.vertical === null ? d.seconds <= 60 : d.vertical && d.seconds <= 180);
+        v.category = d.category;
+        v.tags = d.tags;
+        v.topics = d.topics;
         return v;
       });
     });
@@ -139,7 +154,7 @@
     // for 30 minutes.
     feed: function (force) {
       var cached = YTV.store.get("feed", null);
-      if (!force && cached && cached.v === 2 && Date.now() - cached.at < FEED_TTL) return Promise.resolve(cached.videos);
+      if (!force && cached && cached.v === 3 && Date.now() - cached.at < FEED_TTL) return Promise.resolve(cached.videos);
       return YTV.api.subscriptions(force).then(function (channels) {
         var all = [];
         var queue = channels.slice();
@@ -160,7 +175,7 @@
         var longs = videos.filter(function (v) { return !v.short; }).slice(0, 80);
         var shorts = videos.filter(function (v) { return v.short; }).slice(0, 40);
         videos = longs.concat(shorts);
-        YTV.store.set("feed", { v: 2, at: Date.now(), videos: videos });
+        YTV.store.set("feed", { v: 3, at: Date.now(), videos: videos });
         return videos;
       });
     },

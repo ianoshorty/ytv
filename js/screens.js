@@ -70,6 +70,16 @@
     YTV.ui.videoRow(el, "Shorts", function () {
       return feed.then(function (v) { return v.filter(function (x) { return x.short; }); });
     }, { hideWatched: true, sub: "from your subscriptions", empty: "No recent Shorts from your subscriptions." });
+
+    // Rows by topic and category, built from the same videos.
+    var groupsEl = YTV.el("div");
+    el.appendChild(groupsEl);
+    feed.then(function (v) {
+      YTV.clusters(v.filter(function (x) { return !x.short; })).forEach(function (c) {
+        YTV.ui.videoRow(groupsEl, c.title, function () { return Promise.resolve(c.videos); },
+          { hideWatched: true, sub: c.videos.length + " videos" });
+      });
+    });
   };
 
   // --- Recent: everything played on this TV --------------------------------
